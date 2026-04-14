@@ -1,0 +1,496 @@
+'use client'
+
+import { useState } from 'react'
+import { useCustomers, useServices, usePrices, useCreateRecord, useRecords, useDeleteRecord, useUpdateRecord } from '@/hooks/use-api'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import { Textarea } from '@/components/ui/textarea'
+import { PlusCircle, Trash2, Calendar, Search, X, Check } from 'lucide-react'
+import { toast } from 'sonner'
+
+interface ServiceEntry {
+  serviceId: string
+  quantity: number
+  unitPrice: number
+}
+
+export function DailyEntry() {
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const [selectedCustomer, setSelectedCustomer] = useState<string>('')
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editQuantity, setEditQuantity] = useState<number>(1)
+
+  // Batch entry state
+  const [batchEntries, setBatchEntries] = useState<ServiceEntry[]>([
+    { serviceId: '', quantity: 1, unitPrice: 0 }
+  ])
+
+  const { data: customers, isLoading: customersLoading } = useCustomers()
+  const { data: services, isLoading: servicesLoading } = useServices()
+  const { data: prices } = usePrices(selectedCustomer !== 'all' ? selectedCustomer : undefined)
+  const { data: records, isLoading: recordsLoading } = useRecords({ date: selectedDate })
+  const createRecord = useCreateRecord()
+  const deleteRecord = useDeleteRecord()
+  const updateRecord = useUpdateRecord()
+
+  // Filter records by selected customer or show all
+  const filteredRecords = selectedCustomer && selectedCustomer !== 'all'
+    ? records?.filter(r => r.customerId === selectedCustomer)
+    : records
+
+  // Search filter
+  const displayedRecords = searchQuery
+    ? filteredRecords?.filter(r =>
+        r.customer?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.service?.name.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : filteredRecords
+
+  const getPriceForService = (serviceId: string, customerId?: string) => {
+    if (customerId && customerId !== 'all') {
+      const customPrice = prices?.find(p => p.serviceId === serviceId)
+      if (customPrice) return customPrice.price
+    }
+    const service = services?.find(s => s.id === serviceId)
+    return service?.defaultPrice ?? 0
+  }
+
+  const handleBatchSubmit = async () => {
+    if (!selectedCustomer || selectedCustomer === 'all') {
+      toast.error('Lütfen müşteri seçin')
+      return
+    }
+
+    const validEntries = batchEntries.filter(e => e.serviceId && e.quantity > 0)
+    if (validEntries.length === 0) {
+      toast.error('En az bir hizmet ekleyin')
+      return
+    }
+
+    try {
+      for (const entry of validEntries) {
+        await createRecord.mutateAsync({
+          customerId: selectedCustomer,
+          serviceId: entry.serviceId,
+          date: selectedDate,
+          quantity: entry.quantity,
+          unitPrice: entry.unitPrice,
+        })
+      }
+      toast.success(`${validEntries.length} kayıt eklendi`)
+      setDialogOpen(false)
+      setBatchEntries([{ serviceId: '', quantity: 1, unitPrice: 0 }])
+    } catch {
+      toast.error('Kayıt eklenirken hata oluştu')
+    }
+  }
+
+  const addBatchEntry = () => {
+    setBatchEntries([...batchEntries, { serviceId: '', quantity: 1, unitPrice: 0 }])
+  }
+
+  const removeBatchEntry = (index: number) => {
+    if (batchEntries.length <= 1) return
+    setBatchEntries(batchEntries.filter((_, i) => i !== index))
+  }
+
+  const updateBatchEntry = (index: number, field: keyof ServiceEntry, value: string | number) => {
+    const newEntries = [...batchEntries]
+    if (field === 'serviceId') {
+      newEntries[index].serviceId = value as string
+      newEntries[index].unitPrice = getPriceForService(value as string, selectedCustomer)
+    } else if (field === 'quantity') {
+      newEntries[index].quantity = typeof value === 'string' ? parseInt(value) || 1 : value
+    } else if (field === 'unitPrice') {
+      newEntries[index].unitPrice = typeof value === 'string' ? parseFloat(value) || 0 : value
+    }
+    setBatchEntries(newEntries)
+  }
+
+  const handleDeleteRecord = async (id: string) => {
+    try {
+      await deleteRecord.mutateAsync(id)
+      toast.success('Kayıt silindi')
+    } catch {
+      toast.error('Kayıt silinirken hata oluştu')
+    }
+  }
+
+  const handleUpdateQuantity = async (id: string) => {
+    try {
+      await updateRecord.mutateAsync({ id, quantity: editQuantity })
+      toast.success('Kayıt güncellendi')
+      setEditingId(null)
+    } catch {
+      toast.error('Kayıt güncellenirken hata oluştu')
+    }
+  }
+
+  const batchTotal = batchEntries.reduce((sum, e) => sum + (e.quantity * e.unitPrice), 0)
+  const dayTotal = displayedRecords?.reduce((sum, r) => sum + r.total, 0) ?? 0
+
+  // Group records by customer for better organization
+  const recordsByCustomer = displayedRecords?.reduce((acc, r) => {
+    const key = r.customerId
+    if (!acc[key]) {
+      acc[key] = {
+        name: r.customer?.name ?? 'Bilinmiyor',
+        records: [],
+        total: 0,
+      }
+    }
+    acc[key].records.push(r)
+    acc[key].total += r.total
+    return acc
+  }, {} as Record<string, { name: string; records: typeof displayedRecords; total: number }>)
+
+  return (
+    <div className="space-y-4">
+      {/* Date and Filter Row */}
+      <div className="flex gap-2 items-end">
+        <div className="flex-1">
+          <Label className="text-xs mb-1 block">Tarih</Label>
+          <div className="relative">
+            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+        </div>
+        <div className="flex-1">
+          <Label className="text-xs mb-1 block">Müşteri</Label>
+          <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
+            <SelectTrigger>
+              <SelectValue placeholder="Tümü" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tümü</SelectItem>
+              {customers?.map(c => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          placeholder="Kayıt ara..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      {/* Add Record Button */}
+      <Dialog open={dialogOpen} onOpenChange={(open) => {
+        setDialogOpen(open)
+        if (open) {
+          setBatchEntries([{ serviceId: '', quantity: 1, unitPrice: 0 }])
+        }
+      }}>
+        <DialogTrigger asChild>
+          <Button className="w-full h-12 gap-2">
+            <PlusCircle className="w-5 h-5" />
+            Yeni Kayıt Ekle
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Yeni Kayıt Ekle</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Tarih</Label>
+              <Input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Müşteri *</Label>
+              <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Müşteri seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers?.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Batch Service Entries */}
+            <div className="space-y-3">
+              <Label>Hizmetler</Label>
+              {batchEntries.map((entry, index) => (
+                <div key={index} className="flex gap-2 items-start p-3 rounded-lg bg-muted/50">
+                  <div className="flex-1 space-y-2">
+                    <Select
+                      value={entry.serviceId}
+                      onValueChange={(val) => updateBatchEntry(index, 'serviceId', val)}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Hizmet seçin" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {services?.map(s => {
+                          const price = getPriceForService(s.id, selectedCustomer)
+                          return (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.name} - ₺{price.toFixed(2)}/{s.unit}
+                            </SelectItem>
+                          )
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <Input
+                          type="number"
+                          min="1"
+                          value={entry.quantity}
+                          onChange={(e) => updateBatchEntry(index, 'quantity', e.target.value)}
+                          placeholder="Adet"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={entry.unitPrice}
+                          onChange={(e) => updateBatchEntry(index, 'unitPrice', e.target.value)}
+                          placeholder="Fiyat"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    </div>
+                    {entry.serviceId && entry.quantity > 0 && (
+                      <p className="text-xs font-medium text-primary">
+                        Ara toplam: ₺{(entry.quantity * entry.unitPrice).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                      </p>
+                    )}
+                  </div>
+                  {batchEntries.length > 1 && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive shrink-0"
+                      onClick={() => removeBatchEntry(index)}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-1"
+                onClick={addBatchEntry}
+              >
+                <PlusCircle className="w-3 h-3" />
+                Başka Hizmet Ekle
+              </Button>
+
+              {batchTotal > 0 && (
+                <div className="text-right text-sm font-semibold p-2 bg-primary/5 rounded-lg">
+                  Toplam: ₺{batchTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                </div>
+              )}
+            </div>
+
+            <Button
+              className="w-full"
+              onClick={handleBatchSubmit}
+              disabled={createRecord.isPending}
+            >
+              {createRecord.isPending ? 'Ekleniyor...' : 'Kaydet'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Day Summary */}
+      <Card className="bg-primary/5 border-primary/20">
+        <CardContent className="p-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs text-muted-foreground">Günlük Toplam</p>
+            <p className="text-lg font-bold text-primary">
+              ₺{dayTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+          <Badge variant="secondary" className="text-sm">
+            {displayedRecords?.length ?? 0} kayıt
+          </Badge>
+        </CardContent>
+      </Card>
+
+      {/* Records List - Grouped by Customer */}
+      <div className="space-y-4">
+        {recordsLoading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 w-full rounded-lg" />
+          ))
+        ) : recordsByCustomer && Object.keys(recordsByCustomer).length > 0 ? (
+          Object.entries(recordsByCustomer).map(([customerId, group]) => (
+            <Card key={customerId} className="overflow-hidden">
+              <CardHeader className="py-3 px-4 bg-muted/30">
+                <CardTitle className="text-sm font-semibold flex items-center justify-between">
+                  <span>{group.name}</span>
+                  <span className="text-emerald-600 font-bold">
+                    ₺{group.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y">
+                  {group.records.map((record) => (
+                    <div key={record.id} className="flex items-center justify-between py-2.5 px-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm truncate">{record.service?.name}</p>
+                          <Badge variant="outline" className="text-[10px] shrink-0">
+                            {record.service?.unit}
+                          </Badge>
+                        </div>
+                        {editingId === record.id ? (
+                          <div className="flex items-center gap-2 mt-1">
+                            <Input
+                              type="number"
+                              min="1"
+                              value={editQuantity}
+                              onChange={(e) => setEditQuantity(parseInt(e.target.value) || 1)}
+                              className="h-7 w-20 text-sm"
+                            />
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => handleUpdateQuantity(record.id)}
+                            >
+                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => setEditingId(null)}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <button
+                            className="text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                            onClick={() => {
+                              setEditingId(record.id)
+                              setEditQuantity(record.quantity)
+                            }}
+                          >
+                            × {record.quantity} adet
+                            <span className="ml-1 text-[10px] text-muted-foreground/60">(düzenle)</span>
+                          </button>
+                        )}
+                        {record.notes && (
+                          <p className="text-xs text-muted-foreground italic mt-0.5">
+                            {record.notes}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 ml-3">
+                        <div className="text-right">
+                          <p className="text-sm font-semibold whitespace-nowrap">
+                            ₺{record.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            ₺{record.unitPrice.toFixed(2)}/ad
+                          </p>
+                        </div>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Kaydı Sil</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                {record.customer?.name} - {record.service?.name} × {record.quantity} kaydını silmek istediğinizden emin misiniz?
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>İptal</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteRecord(record.id)}>
+                                Sil
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <Calendar className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">
+                Bu tarihte kayıt bulunamadı
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Yeni kayıt eklemek için butona tıklayın
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  id        String          @id @default(cuid())
+  name      String
+  phone     String?
+  address   String?
+  notes     String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  prices    CustomerPrice[]
+  records   DailyRecord[]
+}
+
+model Service {
+  id           String          @id @default(cuid())
+  name         String
+  unit         String          @default("adet")
+  defaultPrice Float           @default(0)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  prices       CustomerPrice[]
+  records      DailyRecord[]
+}
+
+model CustomerPrice {
+  id         String   @id @default(cuid())
+  customerId String
+  serviceId  String
+  price      Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  service    Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, serviceId])
+}
+
+model DailyRecord {
+  id         String   @id @default(cuid())
+  customerId String
+  serviceId  String
+  date       String   // Format: YYYY-MM-DD
+  quantity   Int      @default(1)
+  unitPrice  Float    // Price at the time of entry
+  total      Float    // quantity * unitPrice
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  service    Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+}
