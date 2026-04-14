@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useCustomers, useReport } from '@/hooks/use-api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -29,7 +29,33 @@ import {
   Users,
   CalendarDays,
   Printer,
+  Download,
+  BarChart3,
 } from 'lucide-react'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts'
+
+// Custom tooltip for bar chart - defined outside component
+function ReportChartTooltip({ active, payload, label }: any) {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-card border border-border rounded-lg px-3 py-2 shadow-lg">
+        <p className="text-xs text-muted-foreground mb-1">{label}</p>
+        <p className="text-sm font-bold text-primary">
+          ₺{payload[0].value.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+        </p>
+      </div>
+    )
+  }
+  return null
+}
 
 export function Reports() {
   const today = new Date()
@@ -73,6 +99,57 @@ export function Reports() {
 
   const handlePrint = () => {
     window.print()
+  }
+
+  const handleExportCSV = () => {
+    if (!report) return
+
+    const lines: string[] = []
+    lines.push('Çamaşırhane Raporu')
+    lines.push(`Tarih Aralığı: ${startDate} - ${endDate}`)
+    lines.push('')
+
+    // Summary
+    lines.push('ÖZET')
+    lines.push(`Toplam Ciro,${report.summary.totalRevenue}`)
+    lines.push(`Toplam Kayıt,${report.summary.totalRecordCount}`)
+    lines.push(`Müşteri Sayısı,${report.summary.uniqueCustomers}`)
+    lines.push(`Toplam Adet,${report.summary.totalQuantity}`)
+    lines.push('')
+
+    // By Service
+    lines.push('HİZMET BAZLI ÖZET')
+    lines.push('Hizmet,Birim,Toplam Adet,Kayıt Sayısı,Toplam Ciro')
+    report.byService.forEach(item => {
+      lines.push(`${item.serviceName},${item.unit},${item.totalQuantity},${item.recordCount},${item.totalRevenue}`)
+    })
+    lines.push('')
+
+    // By Customer
+    lines.push('MÜŞTERİ BAZLI DETAY')
+    lines.push('Müşteri,Toplam Ciro')
+    report.byCustomer.forEach(customer => {
+      lines.push(`${customer.customerName},${customer.totalRevenue}`)
+      customer.services.forEach(svc => {
+        lines.push(`  ${svc.serviceName},${svc.quantity} adet,${svc.revenue}`)
+      })
+    })
+    lines.push('')
+
+    // By Date
+    lines.push('GÜNLÜK ÖZET')
+    lines.push('Tarih,Kayıt Sayısı,Ciro')
+    report.byDate.forEach(item => {
+      lines.push(`${item.date},${item.recordCount},${item.totalRevenue}`)
+    })
+
+    const csvContent = '\uFEFF' + lines.join('\n')  // BOM for Turkish chars
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `camasirhane-rapor-${startDate}-${endDate}.csv`
+    link.click()
+    URL.revokeObjectURL(link.href)
   }
 
   return (
@@ -146,62 +223,110 @@ export function Reports() {
       ) : report ? (
         <>
           <div className="grid grid-cols-2 gap-3">
-            <Card className="border-l-4 border-l-emerald-500">
+            <Card className="border-l-4 border-l-emerald-500 hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                  <TrendingUp className="w-4 h-4" />
-                  <span className="text-xs">Toplam Ciro</span>
+                  <TrendingUp className="w-4 h-4 text-emerald-500" />
+                  <span className="text-xs font-medium">Toplam Ciro</span>
                 </div>
                 <p className="text-lg font-bold text-emerald-600">
                   ₺{report.summary.totalRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
                 </p>
               </CardContent>
             </Card>
-            <Card className="border-l-4 border-l-teal-500">
+            <Card className="border-l-4 border-l-teal-500 hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                  <FileText className="w-4 h-4" />
-                  <span className="text-xs">Toplam Kayıt</span>
+                  <FileText className="w-4 h-4 text-teal-500" />
+                  <span className="text-xs font-medium">Toplam Kayıt</span>
                 </div>
                 <p className="text-lg font-bold text-teal-600">
                   {report.summary.totalRecordCount}
                 </p>
               </CardContent>
             </Card>
-            <Card className="border-l-4 border-l-amber-500">
+            <Card className="border-l-4 border-l-amber-500 hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                  <Users className="w-4 h-4" />
-                  <span className="text-xs">Müşteri Sayısı</span>
+                  <Users className="w-4 h-4 text-amber-500" />
+                  <span className="text-xs font-medium">Müşteri Sayısı</span>
                 </div>
                 <p className="text-lg font-bold text-amber-600">
                   {report.summary.uniqueCustomers}
                 </p>
               </CardContent>
             </Card>
-            <Card className="border-l-4 border-l-rose-400">
+            <Card className="border-l-4 border-l-rose-400 hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                  <CalendarDays className="w-4 h-4" />
-                  <span className="text-xs">Toplam Adet</span>
+                  <CalendarDays className="w-4 h-4 text-rose-400" />
+                  <span className="text-xs font-medium">Toplam Adet</span>
                 </div>
                 <p className="text-lg font-bold text-rose-500">
-                  {report.summary.totalQuantity}
+                  {report.summary.totalQuantity.toLocaleString('tr-TR')}
                 </p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Print Button */}
-          <Button variant="outline" className="w-full gap-2 print:hidden" onClick={handlePrint}>
-            <Printer className="w-4 h-4" />
-            Raporu Yazdır
-          </Button>
+          {/* Action Buttons */}
+          <div className="flex gap-2 print:hidden">
+            <Button variant="outline" className="flex-1 gap-2" onClick={handleExportCSV}>
+              <Download className="w-4 h-4" />
+              CSV İndir
+            </Button>
+            <Button variant="outline" className="flex-1 gap-2" onClick={handlePrint}>
+              <Printer className="w-4 h-4" />
+              Yazdır
+            </Button>
+          </div>
+
+          {/* Revenue Chart */}
+          {report.byDate.length > 0 && (
+            <Card className="overflow-hidden">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-primary" />
+                  Ciro Trendi
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={report.byDate.map(d => ({
+                        date: d.date.slice(5),
+                        ciro: d.totalRevenue,
+                      }))}
+                      margin={{ top: 5, right: 5, left: -20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={0.5} />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 10, fill: 'var(--color-muted-foreground)' }}
+                        axisLine={{ stroke: 'var(--color-border)' }}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 10, fill: 'var(--color-muted-foreground)' }}
+                        axisLine={{ stroke: 'var(--color-border)' }}
+                        tickFormatter={(val: number) => `₺${(val / 1000).toFixed(0)}k`}
+                      />
+                      <Tooltip content={<ReportChartTooltip />} />
+                      <Bar dataKey="ciro" fill="var(--color-primary)" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* By Service */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">Hizmet Bazlı Özet</CardTitle>
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <FileText className="w-4 h-4 text-primary" />
+                Hizmet Bazlı Özet
+              </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
               {report.byService.length === 0 ? (
@@ -210,19 +335,31 @@ export function Reports() {
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {report.byService.map((item) => (
-                    <div key={item.serviceId} className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/50">
-                      <div>
-                        <p className="text-sm font-medium">{item.serviceName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {item.totalQuantity} {item.unit} • {item.recordCount} kayıt
-                        </p>
+                  {report.byService.map((item, idx) => {
+                    const maxRevenue = report.byService[0]?.totalRevenue || 1
+                    const barWidth = (item.totalRevenue / maxRevenue) * 100
+                    return (
+                      <div key={item.serviceId} className="py-2 px-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                        <div className="flex items-center justify-between mb-1">
+                          <div>
+                            <p className="text-sm font-medium">{item.serviceName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.totalQuantity} {item.unit} • {item.recordCount} kayıt
+                            </p>
+                          </div>
+                          <p className="text-sm font-semibold text-emerald-600">
+                            ₺{item.totalRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary/60 rounded-full transition-all duration-500"
+                            style={{ width: `${barWidth}%` }}
+                          />
+                        </div>
                       </div>
-                      <p className="text-sm font-semibold text-emerald-600">
-                        ₺{item.totalRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
-                      </p>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </CardContent>
@@ -231,7 +368,10 @@ export function Reports() {
           {/* By Customer */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">Müşteri Bazlı Detay</CardTitle>
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Users className="w-4 h-4 text-primary" />
+                Müşteri Bazlı Detay
+              </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
               {report.byCustomer.length === 0 ? (
@@ -250,7 +390,7 @@ export function Reports() {
                       </div>
                       <div className="ml-4 space-y-1">
                         {customer.services.map((svc) => (
-                          <div key={svc.serviceId} className="flex items-center justify-between py-1.5 px-2 text-xs">
+                          <div key={svc.serviceId} className="flex items-center justify-between py-1.5 px-2 text-xs hover:bg-muted/50 rounded transition-colors">
                             <span className="text-muted-foreground">
                               {svc.serviceName} × {svc.quantity}
                             </span>
@@ -270,7 +410,10 @@ export function Reports() {
           {/* By Date Table (Desktop) */}
           <Card className="hidden md:block">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">Günlük Özet</CardTitle>
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <CalendarDays className="w-4 h-4 text-primary" />
+                Günlük Özet
+              </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
               {report.byDate.length === 0 ? (
@@ -288,10 +431,10 @@ export function Reports() {
                   </TableHeader>
                   <TableBody>
                     {report.byDate.map((item) => (
-                      <TableRow key={item.date}>
+                      <TableRow key={item.date} className="hover:bg-muted/50">
                         <TableCell className="font-medium">{item.date}</TableCell>
                         <TableCell className="text-right">{item.recordCount}</TableCell>
-                        <TableCell className="text-right font-semibold">
+                        <TableCell className="text-right font-semibold text-emerald-600">
                           ₺{item.totalRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
                         </TableCell>
                       </TableRow>
@@ -305,7 +448,10 @@ export function Reports() {
           {/* By Date Mobile */}
           <Card className="md:hidden">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">Günlük Özet</CardTitle>
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <CalendarDays className="w-4 h-4 text-primary" />
+                Günlük Özet
+              </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
               {report.byDate.length === 0 ? (
@@ -320,7 +466,7 @@ export function Reports() {
                         <p className="text-sm font-medium">{item.date}</p>
                         <p className="text-xs text-muted-foreground">{item.recordCount} kayıt</p>
                       </div>
-                      <p className="text-sm font-semibold">
+                      <p className="text-sm font-semibold text-emerald-600">
                         ₺{item.totalRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
                       </p>
                     </div>
