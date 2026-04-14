@@ -18,7 +18,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import {
   AlertDialog,
@@ -44,8 +43,10 @@ import {
   Pencil,
   Shirt,
   Search,
+  TrendingUp,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { motion, AnimatePresence } from 'framer-motion'
 
 const unitOptions = [
   { value: 'adet', label: 'Adet' },
@@ -54,6 +55,19 @@ const unitOptions = [
   { value: 'paket', label: 'Paket' },
   { value: 'metre', label: 'Metre' },
 ]
+
+const SERVICE_GRADIENTS = [
+  'from-teal-500 to-teal-600',
+  'from-emerald-500 to-emerald-600',
+  'from-amber-500 to-orange-500',
+  'from-rose-400 to-pink-500',
+  'from-violet-500 to-purple-600',
+  'from-cyan-500 to-sky-600',
+  'from-orange-500 to-red-500',
+  'from-pink-500 to-rose-600',
+]
+
+const SERVICE_ICONS = ['🧺', '🧹', '👔', '🛏️', '🏠', '✨', '🧽', '💫']
 
 export function Services() {
   const [addOpen, setAddOpen] = useState(false)
@@ -129,27 +143,34 @@ export function Services() {
 
   const selectedServiceData = services?.find(s => s.id === selectedService)
 
+  // Get total records across all services
+  const totalRecords = services?.reduce((sum, s) => sum + (s._count?.records ?? 0), 0) ?? 0
+
   return (
     <div className="space-y-4">
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Hizmet ara..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-9"
-        />
+      {/* Search and Stats */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Hizmet ara..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <div className="flex items-center gap-1 px-3 bg-muted/50 rounded-lg text-xs text-muted-foreground">
+          <TrendingUp className="w-3 h-3" />
+          {totalRecords} toplam kayıt
+        </div>
       </div>
 
       {/* Add Service */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogTrigger asChild>
-          <Button className="w-full h-12 gap-2">
-            <PlusCircle className="w-5 h-5" />
-            Yeni Hizmet Ekle
-          </Button>
-        </DialogTrigger>
+        <Button className="w-full h-12 gap-2" onClick={() => setAddOpen(true)}>
+          <PlusCircle className="w-5 h-5" />
+          Yeni Hizmet Ekle
+        </Button>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Yeni Hizmet</DialogTitle>
@@ -159,29 +180,31 @@ export function Services() {
               <Label>Hizmet Adı *</Label>
               <Input name="name" placeholder="örn: Çarşaf, Havlu, Bornoz..." required />
             </div>
-            <div className="space-y-2">
-              <Label>Birim</Label>
-              <Select name="unit" defaultValue="adet">
-                <SelectTrigger>
-                  <SelectValue placeholder="Birim seçin" />
-                </SelectTrigger>
-                <SelectContent>
-                  {unitOptions.map(u => (
-                    <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Varsayılan Fiyat (₺)</Label>
-              <Input
-                type="number"
-                name="defaultPrice"
-                min="0"
-                step="0.01"
-                defaultValue="0"
-                placeholder="0.00"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Birim</Label>
+                <Select name="unit" defaultValue="adet">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Birim seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {unitOptions.map(u => (
+                      <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Varsayılan Fiyat (₺)</Label>
+                <Input
+                  type="number"
+                  name="defaultPrice"
+                  min="0"
+                  step="0.01"
+                  defaultValue="0"
+                  placeholder="0.00"
+                />
+              </div>
             </div>
             <Button type="submit" className="w-full" disabled={createService.isPending}>
               {createService.isPending ? 'Ekleniyor...' : 'Hizmet Ekle'}
@@ -191,83 +214,119 @@ export function Services() {
       </Dialog>
 
       {/* Service List */}
-      <div className="space-y-2">
+      <div className="space-y-3">
         {isLoading ? (
           Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 w-full rounded-lg" />
+            <Skeleton key={i} className="h-24 w-full rounded-xl" />
           ))
         ) : filteredServices && filteredServices.length > 0 ? (
-          filteredServices.map((service) => (
-            <Card key={service.id} className="overflow-hidden">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                      <Shirt className="w-5 h-5 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm">{service.name}</p>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                        <Badge variant="outline" className="text-[10px]">
-                          {service.unit}
-                        </Badge>
-                        <span>
-                          ₺{service.defaultPrice.toFixed(2)} / {service.unit}
-                        </span>
+          <AnimatePresence>
+            {filteredServices.map((service, index) => {
+              const recordCount = service._count?.records ?? 0
+              const recordPercent = totalRecords > 0 ? (recordCount / totalRecords) * 100 : 0
+              const gradient = SERVICE_GRADIENTS[index % SERVICE_GRADIENTS.length]
+              const icon = SERVICE_ICONS[index % SERVICE_ICONS.length]
+
+              return (
+                <motion.Card
+                  key={service.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ delay: index * 0.03 }}
+                  className="overflow-hidden hover:shadow-md transition-all"
+                >
+                  <CardContent className="p-0">
+                    <div className="flex">
+                      {/* Color Accent */}
+                      <div className={`w-2 bg-gradient-to-b ${gradient} shrink-0`} />
+
+                      <div className="flex-1 p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center shrink-0 shadow-sm`}>
+                              <span className="text-lg">{icon}</span>
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-sm">{service.name}</p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <Badge variant="outline" className="text-[10px] h-5">
+                                  {service.unit}
+                                </Badge>
+                                <span className="text-xs font-semibold text-primary">
+                                  ₺{service.defaultPrice.toFixed(2)} / {service.unit}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {/* Record count with progress */}
+                            <div className="text-right mr-1 hidden sm:block">
+                              <p className="text-xs font-medium">{recordCount} kayıt</p>
+                              <div className="w-16 h-1 bg-muted rounded-full overflow-hidden mt-1">
+                                <div
+                                  className={`h-full bg-gradient-to-r ${gradient} rounded-full`}
+                                  style={{ width: `${Math.max(recordPercent, 2)}%` }}
+                                />
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => {
+                                setSelectedService(service.id)
+                                setEditOpen(true)
+                              }}
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Hizmeti Sil</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    {service.name} hizmetini silmek istediğinizden emin misiniz? Bu hizmete ait tüm kayıtlar da silinecektir.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>İptal</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleDeleteService(service.id)}>
+                                    Sil
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Badge variant="secondary" className="text-[10px]">
-                      {service._count?.records ?? 0} kayıt
-                    </Badge>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => {
-                        setSelectedService(service.id)
-                        setEditOpen(true)
-                      }}
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Hizmeti Sil</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            {service.name} hizmetini silmek istediğinizden emin misiniz? Bu hizmete ait tüm kayıtlar da silinecektir.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>İptal</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDeleteService(service.id)}>
-                            Sil
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                  </CardContent>
+                </motion.Card>
+              )
+            })}
+          </AnimatePresence>
         ) : (
           <Card>
             <CardContent className="p-8 text-center">
-              <Shirt className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">
+              <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center mx-auto mb-4">
+                <Shirt className="w-8 h-8 text-muted-foreground/30" />
+              </div>
+              <p className="text-sm font-medium text-muted-foreground">
                 Henüz hizmet tanımlanmamış
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground mt-1 mb-4">
                 Yeni hizmet eklemek için butona tıklayın
               </p>
+              <Button variant="outline" className="gap-2" onClick={() => setAddOpen(true)}>
+                <PlusCircle className="w-4 h-4" />
+                Hizmet Ekle
+              </Button>
             </CardContent>
           </Card>
         )}
@@ -284,28 +343,30 @@ export function Services() {
               <Label>Hizmet Adı *</Label>
               <Input name="name" defaultValue={selectedServiceData?.name} required />
             </div>
-            <div className="space-y-2">
-              <Label>Birim</Label>
-              <Select name="unit" defaultValue={selectedServiceData?.unit ?? 'adet'}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Birim seçin" />
-                </SelectTrigger>
-                <SelectContent>
-                  {unitOptions.map(u => (
-                    <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Varsayılan Fiyat (₺)</Label>
-              <Input
-                type="number"
-                name="defaultPrice"
-                min="0"
-                step="0.01"
-                defaultValue={selectedServiceData?.defaultPrice ?? 0}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Birim</Label>
+                <Select name="unit" defaultValue={selectedServiceData?.unit ?? 'adet'}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Birim seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {unitOptions.map(u => (
+                      <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Varsayılan Fiyat (₺)</Label>
+                <Input
+                  type="number"
+                  name="defaultPrice"
+                  min="0"
+                  step="0.01"
+                  defaultValue={selectedServiceData?.defaultPrice ?? 0}
+                />
+              </div>
             </div>
             <Button type="submit" className="w-full" disabled={updateService.isPending}>
               {updateService.isPending ? 'Güncelleniyor...' : 'Güncelle'}

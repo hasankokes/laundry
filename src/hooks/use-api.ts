@@ -51,6 +51,51 @@ export interface DailyRecord {
   service?: { id: string; name: string; unit: string }
 }
 
+export interface CustomerHistoryData {
+  customer: {
+    id: string
+    name: string
+    phone: string | null
+    address: string | null
+    notes: string | null
+    createdAt: string
+    updatedAt: string
+  }
+  totalBalance: number
+  recordCount: number
+  activeServicesCount: number
+  serviceBreakdown: {
+    serviceId: string
+    serviceName: string
+    unit: string
+    totalQuantity: number
+    totalRevenue: number
+  }[]
+  monthlySummary: {
+    month: string
+    totalRevenue: number
+    recordCount: number
+  }[]
+  recentRecords: {
+    id: string
+    date: string
+    serviceId: string
+    serviceName: string
+    quantity: number
+    unitPrice: number
+    total: number
+    notes: string | null
+  }[]
+  customPrices: {
+    id: string
+    serviceId: string
+    serviceName: string
+    unit: string
+    defaultPrice: number
+    customPrice: number
+  }[]
+}
+
 export interface ReportData {
   startDate: string
   endDate: string
@@ -142,6 +187,21 @@ export function useDeleteCustomer() {
       return res.json()
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['customers'] }),
+  })
+}
+
+export function useCustomerHistory(customerId: string | null, startDate?: string, endDate?: string) {
+  return useQuery({
+    queryKey: ['customer-history', customerId, startDate, endDate],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (startDate) params.set('startDate', startDate)
+      if (endDate) params.set('endDate', endDate)
+      const res = await fetch(`/api/customers/${customerId}/history?${params.toString()}`)
+      if (!res.ok) throw new Error('Müşteri geçmişi yüklenemedi')
+      return res.json() as Promise<CustomerHistoryData>
+    },
+    enabled: !!customerId,
   })
 }
 
@@ -311,6 +371,51 @@ export function useDeletePrice() {
       return res.json()
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['prices'] }),
+  })
+}
+
+// Invoice types
+export interface InvoiceData {
+  invoiceNumber: string
+  customer: {
+    id: string
+    name: string
+    phone: string | null
+    address: string | null
+  }
+  startDate: string
+  endDate: string
+  dueDate: string
+  lineItems: {
+    serviceId: string
+    serviceName: string
+    unit: string
+    quantity: number
+    unitPrice: number
+    total: number
+  }[]
+  subtotal: number
+  kdvRate: number
+  kdvAmount: number
+  grandTotal: number
+  createdAt: string
+  recordCount: number
+}
+
+// Invoice hooks
+export function useInvoice(startDate: string, endDate: string, customerId: string) {
+  return useQuery({
+    queryKey: ['invoice', startDate, endDate, customerId],
+    queryFn: async () => {
+      const params = new URLSearchParams({ startDate, endDate, customerId })
+      const res = await fetch(`/api/invoice?${params.toString()}`)
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Fatura yüklenemedi')
+      }
+      return res.json() as Promise<InvoiceData>
+    },
+    enabled: !!startDate && !!endDate && !!customerId,
   })
 }
 

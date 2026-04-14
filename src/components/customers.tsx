@@ -10,7 +10,8 @@ import {
   usePrices,
   useSetPrice,
 } from '@/hooks/use-api'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { CustomerDetail } from '@/components/customer-detail'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,7 +23,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import {
   AlertDialog,
@@ -36,13 +36,6 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   PlusCircle,
   Trash2,
   Pencil,
@@ -53,14 +46,17 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
+  Eye,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { motion, AnimatePresence } from 'framer-motion'
 
 export function Customers() {
   const [addOpen, setAddOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [pricingOpen, setPricingOpen] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null)
 
@@ -156,6 +152,126 @@ export function Customers() {
 
   const selectedCustomerData = customers?.find(c => c.id === selectedCustomer)
 
+  // When opening edit dialog from CustomerDetail
+  const handleEditFromDetail = (id: string) => {
+    setSelectedCustomer(id)
+    setEditOpen(true)
+  }
+
+  // When opening pricing dialog from CustomerDetail
+  const handleSetPricesFromDetail = (id: string) => {
+    setSelectedCustomer(id)
+    setPricingOpen(true)
+  }
+
+  // Show CustomerDetail if a customer is selected
+  if (selectedCustomerId) {
+    return (
+      <>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={selectedCustomerId}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+          >
+            <CustomerDetail
+              customerId={selectedCustomerId}
+              onBack={() => setSelectedCustomerId(null)}
+              onEditCustomer={handleEditFromDetail}
+              onSetPrices={handleSetPricesFromDetail}
+            />
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Edit Customer Dialog - still accessible from detail view */}
+        <Dialog open={editOpen} onOpenChange={setEditOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Müşteri Düzenle</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleEditCustomer} className="space-y-4">
+              <div className="space-y-2">
+                <Label>Ad *</Label>
+                <Input name="name" defaultValue={selectedCustomerData?.name} required />
+              </div>
+              <div className="space-y-2">
+                <Label>Telefon</Label>
+                <Input name="phone" defaultValue={selectedCustomerData?.phone ?? ''} />
+              </div>
+              <div className="space-y-2">
+                <Label>Adres</Label>
+                <Input name="address" defaultValue={selectedCustomerData?.address ?? ''} />
+              </div>
+              <div className="space-y-2">
+                <Label>Notlar</Label>
+                <Textarea name="notes" defaultValue={selectedCustomerData?.notes ?? ''} rows={2} />
+              </div>
+              <Button type="submit" className="w-full" disabled={updateCustomer.isPending}>
+                {updateCustomer.isPending ? 'Güncelleniyor...' : 'Güncelle'}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Customer Pricing Dialog - still accessible from detail view */}
+        <Dialog open={pricingOpen} onOpenChange={setPricingOpen}>
+          <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {selectedCustomerData?.name} - Özel Fiyatlar
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              {services?.map((service) => {
+                const customPrice = prices?.find(p => p.serviceId === service.id)
+                const currentPrice = customPrice?.price ?? service.defaultPrice
+                const isCustom = !!customPrice
+
+                return (
+                  <div key={service.id} className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{service.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Varsayılan: ₺{service.defaultPrice.toFixed(2)}/{service.unit}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="w-24 h-8 text-sm"
+                        defaultValue={currentPrice.toFixed(2)}
+                        onBlur={(e) => {
+                          const newPrice = e.target.value
+                          if (parseFloat(newPrice) !== currentPrice) {
+                            handleSetPrice(service.id, newPrice)
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            const input = e.target as HTMLInputElement
+                            handleSetPrice(service.id, input.value)
+                          }
+                        }}
+                      />
+                      {isCustom && (
+                        <Badge className="text-[10px] shrink-0">Özel</Badge>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </>
+    )
+  }
+
   return (
     <div className="space-y-4">
       {/* Search */}
@@ -171,12 +287,10 @@ export function Customers() {
 
       {/* Add Customer */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogTrigger asChild>
-          <Button className="w-full h-12 gap-2">
-            <PlusCircle className="w-5 h-5" />
-            Yeni Müşteri Ekle
-          </Button>
-        </DialogTrigger>
+        <Button className="w-full h-12 gap-2" onClick={() => setAddOpen(true)}>
+          <PlusCircle className="w-5 h-5" />
+          Yeni Müşteri Ekle
+        </Button>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Yeni Müşteri</DialogTitle>
@@ -213,7 +327,7 @@ export function Customers() {
           ))
         ) : filteredCustomers && filteredCustomers.length > 0 ? (
           filteredCustomers.map((customer) => (
-            <Card key={customer.id} className="overflow-hidden">
+            <Card key={customer.id} className="overflow-hidden hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div
                   className="flex items-start justify-between cursor-pointer"
@@ -267,10 +381,23 @@ export function Customers() {
                     )}
                     <div className="flex gap-2">
                       <Button
+                        variant="default"
+                        size="sm"
+                        className="flex-1 gap-1"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedCustomerId(customer.id)
+                        }}
+                      >
+                        <Eye className="w-3 h-3" />
+                        Detay
+                      </Button>
+                      <Button
                         variant="outline"
                         size="sm"
                         className="flex-1 gap-1"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation()
                           setSelectedCustomer(customer.id)
                           setPricingOpen(true)
                         }}
@@ -282,7 +409,8 @@ export function Customers() {
                         variant="outline"
                         size="sm"
                         className="flex-1 gap-1"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation()
                           setSelectedCustomer(customer.id)
                           setEditOpen(true)
                         }}
@@ -292,7 +420,7 @@ export function Customers() {
                       </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="outline" size="sm" className="text-destructive hover:text-destructive gap-1">
+                          <Button variant="outline" size="sm" className="text-destructive hover:text-destructive gap-1" onClick={(e) => e.stopPropagation()}>
                             <Trash2 className="w-3 h-3" />
                           </Button>
                         </AlertDialogTrigger>

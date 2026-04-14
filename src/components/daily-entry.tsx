@@ -13,7 +13,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import {
   Select,
@@ -34,13 +33,26 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Textarea } from '@/components/ui/textarea'
-import { PlusCircle, Trash2, Calendar, Search, X, Check } from 'lucide-react'
+import {
+  PlusCircle, Trash2, Calendar, Search, X, Check,
+  ChevronLeft, ChevronRight, Copy, StickyNote, TrendingUp
+} from 'lucide-react'
 import { toast } from 'sonner'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface ServiceEntry {
   serviceId: string
   quantity: number
   unitPrice: number
+}
+
+const dayNames = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi']
+
+function formatDisplayDate(dateStr: string) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+  const dayName = dayNames[date.getDay()]
+  return `${d}.${m}.${y} ${dayName}`
 }
 
 export function DailyEntry() {
@@ -55,14 +67,25 @@ export function DailyEntry() {
   const [batchEntries, setBatchEntries] = useState<ServiceEntry[]>([
     { serviceId: '', quantity: 1, unitPrice: 0 }
   ])
+  const [batchNotes, setBatchNotes] = useState('')
 
   const { data: customers, isLoading: customersLoading } = useCustomers()
   const { data: services, isLoading: servicesLoading } = useServices()
-  const { data: prices } = usePrices(selectedCustomer !== 'all' ? selectedCustomer : undefined)
+  const { data: prices } = usePrices(selectedCustomer !== 'all' && selectedCustomer ? selectedCustomer : undefined)
   const { data: records, isLoading: recordsLoading } = useRecords({ date: selectedDate })
   const createRecord = useCreateRecord()
   const deleteRecord = useDeleteRecord()
   const updateRecord = useUpdateRecord()
+
+  // Date navigation
+  const navigateDate = (direction: number) => {
+    const [y, m, d] = selectedDate.split('-').map(Number)
+    const date = new Date(y, m - 1, d)
+    date.setDate(date.getDate() + direction)
+    setSelectedDate(date.toISOString().split('T')[0])
+  }
+
+  const isToday = selectedDate === new Date().toISOString().split('T')[0]
 
   // Filter records by selected customer or show all
   const filteredRecords = selectedCustomer && selectedCustomer !== 'all'
@@ -106,11 +129,13 @@ export function DailyEntry() {
           date: selectedDate,
           quantity: entry.quantity,
           unitPrice: entry.unitPrice,
+          notes: batchNotes?.trim() || undefined,
         })
       }
       toast.success(`${validEntries.length} kayıt eklendi`)
       setDialogOpen(false)
       setBatchEntries([{ serviceId: '', quantity: 1, unitPrice: 0 }])
+      setBatchNotes('')
     } catch {
       toast.error('Kayıt eklenirken hata oluştu')
     }
@@ -157,10 +182,26 @@ export function DailyEntry() {
     }
   }
 
+  const handleDuplicateRecord = async (record: any) => {
+    try {
+      await createRecord.mutateAsync({
+        customerId: record.customerId,
+        serviceId: record.serviceId,
+        date: selectedDate,
+        quantity: record.quantity,
+        unitPrice: record.unitPrice,
+        notes: record.notes || undefined,
+      })
+      toast.success('Kayıt kopyalandı')
+    } catch {
+      toast.error('Kayıt kopyalanırken hata oluştu')
+    }
+  }
+
   const batchTotal = batchEntries.reduce((sum, e) => sum + (e.quantity * e.unitPrice), 0)
   const dayTotal = displayedRecords?.reduce((sum, r) => sum + r.total, 0) ?? 0
 
-  // Group records by customer for better organization
+  // Group records by customer
   const recordsByCustomer = displayedRecords?.reduce((acc, r) => {
     const key = r.customerId
     if (!acc[key]) {
@@ -177,45 +218,76 @@ export function DailyEntry() {
 
   return (
     <div className="space-y-4">
-      {/* Date and Filter Row */}
-      <div className="flex gap-2 items-end">
-        <div className="flex-1">
-          <Label className="text-xs mb-1 block">Tarih</Label>
-          <div className="relative">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="pl-9"
-            />
-          </div>
+      {/* Date Navigation */}
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-10 w-10 shrink-0"
+          onClick={() => navigateDate(-1)}
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </Button>
+        <div className="flex-1 relative">
+          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="pl-9 text-center font-medium"
+          />
         </div>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-10 w-10 shrink-0"
+          onClick={() => navigateDate(1)}
+        >
+          <ChevronRight className="w-4 h-4" />
+        </Button>
+        {!isToday && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0 text-xs"
+            onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+          >
+            Bugün
+          </Button>
+        )}
+      </div>
+
+      {/* Date Display */}
+      <div className="text-center">
+        <p className="text-sm font-semibold text-muted-foreground">
+          {formatDisplayDate(selectedDate)}
+        </p>
+      </div>
+
+      {/* Customer Filter */}
+      <div className="flex gap-2">
         <div className="flex-1">
-          <Label className="text-xs mb-1 block">Müşteri</Label>
           <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
             <SelectTrigger>
               <SelectValue placeholder="Tümü" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tümü</SelectItem>
+              <SelectItem value="all">Tüm Müşteriler</SelectItem>
               {customers?.map(c => (
                 <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-      </div>
-
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Kayıt ara..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-9"
-        />
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Kayıt ara..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
       </div>
 
       {/* Add Record Button */}
@@ -223,47 +295,47 @@ export function DailyEntry() {
         setDialogOpen(open)
         if (open) {
           setBatchEntries([{ serviceId: '', quantity: 1, unitPrice: 0 }])
+          setBatchNotes('')
         }
       }}>
-        <DialogTrigger asChild>
-          <Button className="w-full h-12 gap-2">
-            <PlusCircle className="w-5 h-5" />
-            Yeni Kayıt Ekle
-          </Button>
-        </DialogTrigger>
+        <Button className="w-full h-12 gap-2" onClick={() => setDialogOpen(true)}>
+          <PlusCircle className="w-5 h-5" />
+          Yeni Kayıt Ekle
+        </Button>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Yeni Kayıt Ekle</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Tarih</Label>
-              <Input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Müşteri *</Label>
-              <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Müşteri seçin" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers?.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Tarih</Label>
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Müşteri *</Label>
+                <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Müşteri seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers?.map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Batch Service Entries */}
             <div className="space-y-3">
               <Label>Hizmetler</Label>
               {batchEntries.map((entry, index) => (
-                <div key={index} className="flex gap-2 items-start p-3 rounded-lg bg-muted/50">
+                <div key={index} className="flex gap-2 items-start p-3 rounded-xl bg-muted/50">
                   <div className="flex-1 space-y-2">
                     <Select
                       value={entry.serviceId}
@@ -334,13 +406,28 @@ export function DailyEntry() {
                 <PlusCircle className="w-3 h-3" />
                 Başka Hizmet Ekle
               </Button>
-
-              {batchTotal > 0 && (
-                <div className="text-right text-sm font-semibold p-2 bg-primary/5 rounded-lg">
-                  Toplam: ₺{batchTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
-                </div>
-              )}
             </div>
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                <StickyNote className="w-3.5 h-3.5" />
+                Notlar
+              </Label>
+              <Textarea
+                placeholder="İsteğe bağlı notlar..."
+                value={batchNotes}
+                onChange={(e) => setBatchNotes(e.target.value)}
+                rows={2}
+              />
+            </div>
+
+            {batchTotal > 0 && (
+              <div className="flex items-center justify-between text-sm font-semibold p-3 bg-primary/5 rounded-xl">
+                <span>Toplam:</span>
+                <span className="text-primary">₺{batchTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
 
             <Button
               className="w-full"
@@ -354,15 +441,18 @@ export function DailyEntry() {
       </Dialog>
 
       {/* Day Summary */}
-      <Card className="bg-primary/5 border-primary/20">
+      <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
         <CardContent className="p-4 flex items-center justify-between">
           <div>
-            <p className="text-xs text-muted-foreground">Günlük Toplam</p>
-            <p className="text-lg font-bold text-primary">
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <TrendingUp className="w-3 h-3" />
+              Günlük Toplam
+            </p>
+            <p className="text-xl font-bold text-primary">
               ₺{dayTotal.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
             </p>
           </div>
-          <Badge variant="secondary" className="text-sm">
+          <Badge variant="secondary" className="text-sm px-3 py-1">
             {displayedRecords?.length ?? 0} kayıt
           </Badge>
         </CardContent>
@@ -375,118 +465,148 @@ export function DailyEntry() {
             <Skeleton key={i} className="h-20 w-full rounded-lg" />
           ))
         ) : recordsByCustomer && Object.keys(recordsByCustomer).length > 0 ? (
-          Object.entries(recordsByCustomer).map(([customerId, group]) => (
-            <Card key={customerId} className="overflow-hidden">
-              <CardHeader className="py-3 px-4 bg-muted/30">
-                <CardTitle className="text-sm font-semibold flex items-center justify-between">
-                  <span>{group.name}</span>
-                  <span className="text-emerald-600 font-bold">
-                    ₺{group.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="divide-y">
-                  {group.records.map((record) => (
-                    <div key={record.id} className="flex items-center justify-between py-2.5 px-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm truncate">{record.service?.name}</p>
-                          <Badge variant="outline" className="text-[10px] shrink-0">
-                            {record.service?.unit}
-                          </Badge>
-                        </div>
-                        {editingId === record.id ? (
-                          <div className="flex items-center gap-2 mt-1">
-                            <Input
-                              type="number"
-                              min="1"
-                              value={editQuantity}
-                              onChange={(e) => setEditQuantity(parseInt(e.target.value) || 1)}
-                              className="h-7 w-20 text-sm"
-                            />
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              onClick={() => handleUpdateQuantity(record.id)}
-                            >
-                              <Check className="w-3.5 h-3.5 text-emerald-600" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              onClick={() => setEditingId(null)}
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </Button>
+          <AnimatePresence>
+            {Object.entries(recordsByCustomer).map(([customerId, group]) => (
+              <motion.Card
+                key={customerId}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="overflow-hidden"
+              >
+                <CardHeader className="py-3 px-4 bg-gradient-to-r from-muted/50 to-muted/30">
+                  <CardTitle className="text-sm font-semibold flex items-center justify-between">
+                    <span>{group.name}</span>
+                    <span className="text-emerald-600 font-bold">
+                      ₺{group.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="divide-y">
+                    {group.records.map((record) => (
+                      <div key={record.id} className="flex items-center justify-between py-2.5 px-4 hover:bg-muted/30 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm truncate">{record.service?.name}</p>
+                            <Badge variant="outline" className="text-[10px] shrink-0">
+                              {record.service?.unit}
+                            </Badge>
                           </div>
-                        ) : (
-                          <button
-                            className="text-xs text-muted-foreground hover:text-foreground cursor-pointer"
-                            onClick={() => {
-                              setEditingId(record.id)
-                              setEditQuantity(record.quantity)
-                            }}
-                          >
-                            × {record.quantity} adet
-                            <span className="ml-1 text-[10px] text-muted-foreground/60">(düzenle)</span>
-                          </button>
-                        )}
-                        {record.notes && (
-                          <p className="text-xs text-muted-foreground italic mt-0.5">
-                            {record.notes}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0 ml-3">
-                        <div className="text-right">
-                          <p className="text-sm font-semibold whitespace-nowrap">
-                            ₺{record.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            ₺{record.unitPrice.toFixed(2)}/ad
-                          </p>
+                          {editingId === record.id ? (
+                            <div className="flex items-center gap-2 mt-1">
+                              <Input
+                                type="number"
+                                min="1"
+                                value={editQuantity}
+                                onChange={(e) => setEditQuantity(parseInt(e.target.value) || 1)}
+                                className="h-7 w-20 text-sm"
+                              />
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7"
+                                onClick={() => handleUpdateQuantity(record.id)}
+                              >
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7"
+                                onClick={() => setEditingId(null)}
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <button
+                              className="text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                              onClick={() => {
+                                setEditingId(record.id)
+                                setEditQuantity(record.quantity)
+                              }}
+                            >
+                              × {record.quantity} adet
+                              <span className="ml-1 text-[10px] text-muted-foreground/60">(düzenle)</span>
+                            </button>
+                          )}
+                          {record.notes && (
+                            <p className="text-xs text-muted-foreground italic mt-0.5 flex items-center gap-1">
+                              <StickyNote className="w-3 h-3" />
+                              {record.notes}
+                            </p>
+                          )}
                         </div>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive">
-                              <Trash2 className="w-3.5 h-3.5" />
+                        <div className="flex items-center gap-2 shrink-0 ml-3">
+                          <div className="text-right">
+                            <p className="text-sm font-semibold whitespace-nowrap">
+                              ₺{record.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              ₺{record.unitPrice.toFixed(2)}/ad
+                            </p>
+                          </div>
+                          <div className="flex flex-col gap-0.5">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-muted-foreground hover:text-primary"
+                              onClick={() => handleDuplicateRecord(record)}
+                              title="Kopyala"
+                            >
+                              <Copy className="w-3 h-3" />
                             </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Kaydı Sil</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                {record.customer?.name} - {record.service?.name} × {record.quantity} kaydını silmek istediğinizden emin misiniz?
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>İptal</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeleteRecord(record.id)}>
-                                Sil
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive">
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Kaydı Sil</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    {record.customer?.name} - {record.service?.name} × {record.quantity} kaydını silmek istediğinizden emin misiniz?
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>İptal</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleDeleteRecord(record.id)}>
+                                    Sil
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                    ))}
+                  </div>
+                </CardContent>
+              </motion.Card>
+            ))}
+          </AnimatePresence>
         ) : (
           <Card>
             <CardContent className="p-8 text-center">
-              <Calendar className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">
+              <div className="w-16 h-16 rounded-full bg-muted/30 flex items-center justify-center mx-auto mb-4">
+                <Calendar className="w-8 h-8 text-muted-foreground/30" />
+              </div>
+              <p className="text-sm font-medium text-muted-foreground">
                 Bu tarihte kayıt bulunamadı
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Yeni kayıt eklemek için butona tıklayın
+              <p className="text-xs text-muted-foreground mt-1 mb-4">
+                {formatDisplayDate(selectedDate)}
               </p>
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => setDialogOpen(true)}
+              >
+                <PlusCircle className="w-4 h-4" />
+                Kayıt Ekle
+              </Button>
             </CardContent>
           </Card>
         )}

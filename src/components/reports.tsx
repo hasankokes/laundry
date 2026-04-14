@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useCustomers, useReport } from '@/hooks/use-api'
+import { InvoiceDialog } from '@/components/invoice-dialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,6 +32,7 @@ import {
   Printer,
   Download,
   BarChart3,
+  Receipt,
 } from 'lucide-react'
 import {
   BarChart,
@@ -65,6 +67,7 @@ export function Reports() {
   const [startDate, setStartDate] = useState(firstDay)
   const [endDate, setEndDate] = useState(lastDay)
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
+  const [invoiceOpen, setInvoiceOpen] = useState(false)
 
   const { data: customers } = useCustomers()
   const { data: report, isLoading } = useReport(
@@ -279,7 +282,25 @@ export function Reports() {
               <Printer className="w-4 h-4" />
               Yazdır
             </Button>
+            <Button
+              className="flex-1 gap-2"
+              onClick={() => setInvoiceOpen(true)}
+              disabled={!selectedCustomer || selectedCustomer === 'all'}
+              title={!selectedCustomer || selectedCustomer === 'all' ? 'Fatura için müşteri seçin' : 'Fatura oluştur'}
+            >
+              <Receipt className="w-4 h-4" />
+              Fatura Oluştur
+            </Button>
           </div>
+
+          {/* Invoice Dialog */}
+          <InvoiceDialog
+            open={invoiceOpen}
+            onOpenChange={setInvoiceOpen}
+            startDate={startDate}
+            endDate={endDate}
+            customerId={selectedCustomer && selectedCustomer !== 'all' ? selectedCustomer : ''}
+          />
 
           {/* Revenue Chart */}
           {report.byDate.length > 0 && (

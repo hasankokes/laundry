@@ -146,3 +146,44 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* Print styles for invoice */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .invoice-print,
+  .invoice-print * {
+    visibility: visible;
+  }
+
+  .invoice-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: white !important;
+    color: black !important;
+  }
+
+  .print-actions,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Ensure table borders in print */
+  .invoice-print table {
+    border-collapse: collapse;
+  }
+
+  .invoice-print table th,
+  .invoice-print table td {
+    border: 1px solid #ddd;
+  }
+
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+}

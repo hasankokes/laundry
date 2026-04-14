@@ -14,6 +14,10 @@ import {
   ChevronRight,
   PlusCircle,
   ArrowUpRight,
+  ArrowDownRight,
+  Activity,
+  Zap,
+  Target,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { motion } from 'framer-motion'
@@ -30,6 +34,8 @@ import {
   Pie,
   Cell,
   Legend,
+  AreaChart,
+  Area,
 } from 'recharts'
 
 const monthNames = [
@@ -38,8 +44,8 @@ const monthNames = [
 ]
 
 const CHART_COLORS = [
-  '#0d9488', '#f59e0b', '#ef4444', '#8b5cf6', '#3b82f6',
-  '#ec4899', '#10b981', '#f97316',
+  '#0d9488', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899',
+  '#10b981', '#f97316', '#06b6d4',
 ]
 
 const cardVariants = {
@@ -51,7 +57,7 @@ const cardVariants = {
   }),
 }
 
-// Custom tooltip for bar chart - defined outside component to avoid re-creation
+// Custom tooltip for bar chart
 function CustomBarTooltip({ active, payload, label }: any) {
   if (active && payload && payload.length) {
     return (
@@ -66,7 +72,7 @@ function CustomBarTooltip({ active, payload, label }: any) {
   return null
 }
 
-// Custom label for pie chart - defined outside component
+// Custom label for pie chart
 function renderPieLabel({ name, percent }: any) {
   if (percent < 0.05) return ''
   return `${name} %${(percent * 100).toFixed(0)}`
@@ -79,7 +85,14 @@ export function Dashboard() {
   const startDate = `${selectedMonth}-01`
   const endDate = `${selectedMonth}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`
 
+  // Previous month data for comparison
+  const prevMonthDate = new Date(year, month - 2, 1)
+  const prevMonthStr = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}`
+  const prevStartDate = `${prevMonthStr}-01`
+  const prevEndDate = `${prevMonthStr}-${String(new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth() + 1, 0).getDate()).padStart(2, '0')}`
+
   const { data: records, isLoading: recordsLoading } = useRecords({ startDate, endDate })
+  const { data: prevRecords } = useRecords({ startDate: prevStartDate, endDate: prevEndDate })
   const { data: customers } = useCustomers()
   const { data: services } = useServices()
 
@@ -94,13 +107,31 @@ export function Dashboard() {
   }
 
   const totalRevenue = records?.reduce((sum, r) => sum + r.total, 0) ?? 0
+  const prevRevenue = prevRecords?.reduce((sum, r) => sum + r.total, 0) ?? 0
   const totalQuantity = records?.reduce((sum, r) => sum + r.quantity, 0) ?? 0
+  const prevQuantity = prevRecords?.reduce((sum, r) => sum + r.quantity, 0) ?? 0
   const uniqueCustomers = new Set(records?.map(r => r.customerId)).size
+  const prevUniqueCustomers = new Set(prevRecords?.map(r => r.customerId)).size
+
+  // Revenue change percentage
+  const revenueChange = prevRevenue > 0
+    ? ((totalRevenue - prevRevenue) / prevRevenue) * 100
+    : totalRevenue > 0 ? 100 : 0
+  const quantityChange = prevQuantity > 0
+    ? ((totalQuantity - prevQuantity) / prevQuantity) * 100
+    : totalQuantity > 0 ? 100 : 0
+  const customerChange = prevUniqueCustomers > 0
+    ? ((uniqueCustomers - prevUniqueCustomers) / prevUniqueCustomers) * 100
+    : uniqueCustomers > 0 ? 100 : 0
 
   // Today's records
   const today = new Date().toISOString().split('T')[0]
   const todayRecords = records?.filter(r => r.date === today) ?? []
   const todayRevenue = todayRecords.reduce((sum, r) => sum + r.total, 0)
+
+  // Average daily revenue
+  const daysWithData = new Set(records?.map(r => r.date)).size
+  const avgDailyRevenue = daysWithData > 0 ? totalRevenue / daysWithData : 0
 
   // Top customers this month
   const customerTotals: Record<string, { name: string; total: number; count: number }> = {}
@@ -136,7 +167,7 @@ export function Dashboard() {
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 6)
 
-  // Daily revenue trend for bar chart
+  // Daily revenue trend for area chart
   const dailyRevenue: Record<string, number> = {}
   records?.forEach(r => {
     if (!dailyRevenue[r.date]) dailyRevenue[r.date] = 0
@@ -145,12 +176,12 @@ export function Dashboard() {
   const dailyChartData = Object.entries(dailyRevenue)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, revenue]) => ({
-      date: date.slice(5), // MM-DD format
+      date: date.slice(5),
       ciro: revenue,
     }))
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Month Selector */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
@@ -160,111 +191,174 @@ export function Dashboard() {
         <Button variant="ghost" size="icon" onClick={prevMonth} className="hover:bg-primary/10">
           <ChevronLeft className="w-5 h-5" />
         </Button>
-        <h2 className="text-xl font-bold tracking-tight">
-          {monthNames[month - 1]} {year}
-        </h2>
+        <div className="text-center">
+          <h2 className="text-xl font-bold tracking-tight">
+            {monthNames[month - 1]} {year}
+          </h2>
+          <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">
+            Aylık Özet
+          </p>
+        </div>
         <Button variant="ghost" size="icon" onClick={nextMonth} className="hover:bg-primary/10">
           <ChevronRight className="w-5 h-5" />
         </Button>
       </motion.div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards - Gradient */}
       <div className="grid grid-cols-2 gap-3">
         <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible">
-          <Card className="border-l-4 border-l-emerald-500 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveTab('reports')}>
+          <Card
+            className="bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 text-white hover:shadow-lg hover:shadow-emerald-500/20 transition-all cursor-pointer"
+            onClick={() => setActiveTab('reports')}
+          >
             <CardContent className="p-4">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1.5">
-                <div className="w-6 h-6 rounded-md bg-emerald-500/10 flex items-center justify-center">
-                  <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+                  <TrendingUp className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-medium">Aylık Ciro</span>
+                {prevRevenue > 0 && (
+                  <Badge className={cn(
+                    "text-[10px] font-bold px-1.5 py-0",
+                    revenueChange >= 0
+                      ? "bg-white/20 text-white"
+                      : "bg-red-500/30 text-white"
+                  )}>
+                    {revenueChange >= 0 ? <ArrowUpRight className="w-3 h-3 inline" /> : <ArrowDownRight className="w-3 h-3 inline" />}
+                    {Math.abs(revenueChange).toFixed(0)}%
+                  </Badge>
+                )}
               </div>
               {recordsLoading ? (
-                <Skeleton className="h-7 w-28" />
+                <Skeleton className="h-7 w-28 bg-white/20" />
               ) : (
-                <div className="flex items-baseline gap-1">
-                  <p className="text-xl font-bold text-emerald-600">
-                    ₺{totalRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
-                  </p>
-                  <ArrowUpRight className="w-3 h-3 text-emerald-500" />
-                </div>
+                <p className="text-2xl font-bold">
+                  ₺{totalRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
+                </p>
               )}
+              <p className="text-[11px] text-white/70 mt-0.5">Aylık Ciro</p>
             </CardContent>
           </Card>
         </motion.div>
 
         <motion.div custom={1} variants={cardVariants} initial="hidden" animate="visible">
-          <Card className="border-l-4 border-l-amber-500 hover:shadow-md transition-shadow">
+          <Card
+            className="bg-gradient-to-br from-amber-500 to-orange-500 border-0 text-white hover:shadow-lg hover:shadow-amber-500/20 transition-all"
+          >
             <CardContent className="p-4">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1.5">
-                <div className="w-6 h-6 rounded-md bg-amber-500/10 flex items-center justify-center">
-                  <CalendarDays className="w-3.5 h-3.5 text-amber-500" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+                  <CalendarDays className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-medium">Bugünkü Ciro</span>
+                <div className="flex items-center gap-1 text-white/80 text-[10px]">
+                  <Zap className="w-3 h-3" />
+                  BUGÜN
+                </div>
               </div>
               {recordsLoading ? (
-                <Skeleton className="h-7 w-24" />
+                <Skeleton className="h-7 w-24 bg-white/20" />
               ) : (
-                <p className="text-xl font-bold text-amber-600">
+                <p className="text-2xl font-bold">
                   ₺{todayRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
                 </p>
               )}
+              <p className="text-[11px] text-white/70 mt-0.5">Bugünkü Ciro</p>
             </CardContent>
           </Card>
         </motion.div>
 
         <motion.div custom={2} variants={cardVariants} initial="hidden" animate="visible">
-          <Card className="border-l-4 border-l-teal-500 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveTab('customers')}>
+          <Card
+            className="bg-gradient-to-br from-teal-500 to-teal-600 border-0 text-white hover:shadow-lg hover:shadow-teal-500/20 transition-all cursor-pointer"
+            onClick={() => setActiveTab('customers')}
+          >
             <CardContent className="p-4">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1.5">
-                <div className="w-6 h-6 rounded-md bg-teal-500/10 flex items-center justify-center">
-                  <Users className="w-3.5 h-3.5 text-teal-500" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+                  <Users className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-medium">Aktif Müşteri</span>
+                {prevUniqueCustomers > 0 && customerChange !== 0 && (
+                  <Badge className={cn(
+                    "text-[10px] font-bold px-1.5 py-0",
+                    customerChange >= 0
+                      ? "bg-white/20 text-white"
+                      : "bg-red-500/30 text-white"
+                  )}>
+                    {customerChange >= 0 ? '+' : ''}{customerChange.toFixed(0)}%
+                  </Badge>
+                )}
               </div>
               {recordsLoading ? (
-                <Skeleton className="h-7 w-16" />
+                <Skeleton className="h-7 w-16 bg-white/20" />
               ) : (
-                <p className="text-xl font-bold text-teal-600">{uniqueCustomers}</p>
+                <p className="text-2xl font-bold">{uniqueCustomers}</p>
               )}
+              <p className="text-[11px] text-white/70 mt-0.5">Aktif Müşteri</p>
             </CardContent>
           </Card>
         </motion.div>
 
         <motion.div custom={3} variants={cardVariants} initial="hidden" animate="visible">
-          <Card className="border-l-4 border-l-rose-400 hover:shadow-md transition-shadow">
+          <Card
+            className="bg-gradient-to-br from-rose-400 to-pink-500 border-0 text-white hover:shadow-lg hover:shadow-rose-500/20 transition-all"
+          >
             <CardContent className="p-4">
-              <div className="flex items-center gap-2 text-muted-foreground mb-1.5">
-                <div className="w-6 h-6 rounded-md bg-rose-400/10 flex items-center justify-center">
-                  <Shirt className="w-3.5 h-3.5 text-rose-400" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
+                  <Shirt className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-medium">Toplam Adet</span>
+                {prevQuantity > 0 && quantityChange !== 0 && (
+                  <Badge className={cn(
+                    "text-[10px] font-bold px-1.5 py-0",
+                    quantityChange >= 0
+                      ? "bg-white/20 text-white"
+                      : "bg-red-500/30 text-white"
+                  )}>
+                    {quantityChange >= 0 ? '+' : ''}{quantityChange.toFixed(0)}%
+                  </Badge>
+                )}
               </div>
               {recordsLoading ? (
-                <Skeleton className="h-7 w-16" />
+                <Skeleton className="h-7 w-16 bg-white/20" />
               ) : (
-                <p className="text-xl font-bold text-rose-500">{totalQuantity.toLocaleString('tr-TR')}</p>
+                <p className="text-2xl font-bold">{totalQuantity.toLocaleString('tr-TR')}</p>
               )}
+              <p className="text-[11px] text-white/70 mt-0.5">Toplam Adet</p>
             </CardContent>
           </Card>
         </motion.div>
       </div>
 
-      {/* Quick Action */}
-      <Button
-        className="w-full h-12 text-base gap-2 shadow-md hover:shadow-lg transition-shadow"
-        onClick={() => setActiveTab('daily-entry')}
-      >
-        <PlusCircle className="w-5 h-5" />
-        Günlük Kayıt Ekle
-      </Button>
+      {/* Quick Action + Average */}
+      <div className="grid grid-cols-5 gap-3">
+        <Button
+          className="col-span-3 h-12 text-base gap-2 shadow-md hover:shadow-lg transition-shadow"
+          onClick={() => setActiveTab('daily-entry')}
+        >
+          <PlusCircle className="w-5 h-5" />
+          Günlük Kayıt Ekle
+        </Button>
+        <Card className="col-span-2 bg-primary/5 border-primary/20">
+          <CardContent className="p-3 text-center">
+            <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
+              <Activity className="w-3 h-3" />
+              <span className="text-[10px] font-medium">Günlük Ort.</span>
+            </div>
+            <p className="text-base font-bold text-primary">
+              ₺{avgDailyRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* Revenue Trend Chart */}
+      {/* Revenue Trend Chart - Area */}
       <Card className="overflow-hidden">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <TrendingUp className="w-4 h-4 text-primary" />
             Günlük Ciro Trendi
+            <Badge variant="secondary" className="ml-auto text-[10px]">
+              {daysWithData} gün
+            </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
@@ -273,7 +367,13 @@ export function Dashboard() {
           ) : dailyChartData.length > 0 ? (
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dailyChartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                <AreaChart data={dailyChartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                  <defs>
+                    <linearGradient id="colorCiro" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={0.5} />
                   <XAxis
                     dataKey="date"
@@ -286,13 +386,14 @@ export function Dashboard() {
                     tickFormatter={(val: number) => `₺${(val / 1000).toFixed(0)}k`}
                   />
                   <Tooltip content={<CustomBarTooltip />} />
-                  <Bar
+                  <Area
+                    type="monotone"
                     dataKey="ciro"
-                    fill="var(--color-primary)"
-                    radius={[4, 4, 0, 0]}
-                    maxBarSize={40}
+                    stroke="var(--color-primary)"
+                    strokeWidth={2}
+                    fill="url(#colorCiro)"
                   />
-                </BarChart>
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           ) : (
@@ -365,23 +466,44 @@ export function Dashboard() {
         </CardHeader>
         <CardContent className="pt-0">
           {todayRecords.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              Bugün henüz kayıt yok
-            </p>
+            <div className="text-center py-6">
+              <div className="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-3">
+                <CalendarDays className="w-6 h-6 text-muted-foreground/40" />
+              </div>
+              <p className="text-sm text-muted-foreground">Bugün henüz kayıt yok</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 gap-1.5"
+                onClick={() => setActiveTab('daily-entry')}
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                Kayıt Ekle
+              </Button>
+            </div>
           ) : (
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              {todayRecords.map((record) => (
+              {todayRecords.map((record, idx) => (
                 <motion.div
                   key={record.id}
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                  transition={{ delay: idx * 0.03 }}
+                  className="flex items-center justify-between py-2.5 px-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
                 >
-                  <div>
-                    <p className="text-sm font-medium">{record.customer?.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {record.service?.name} × {record.quantity}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
+                      style={{ backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }}
+                    >
+                      {record.service?.name?.charAt(0) ?? '?'}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{record.customer?.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {record.service?.name} × {record.quantity}
+                      </p>
+                    </div>
                   </div>
                   <p className="text-sm font-semibold text-emerald-600">
                     ₺{record.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
@@ -397,7 +519,7 @@ export function Dashboard() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Users className="w-4 h-4 text-primary" />
+            <Target className="w-4 h-4 text-primary" />
             En Çok İş Yapan Müşteriler
           </CardTitle>
         </CardHeader>
@@ -408,56 +530,80 @@ export function Dashboard() {
             </p>
           ) : (
             <div className="space-y-2">
-              {topCustomers.map((c, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  className="flex items-center justify-between py-2.5 px-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className={cn(
-                      "w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center",
-                      i === 0 ? "bg-amber-500/20 text-amber-600" :
-                      i === 1 ? "bg-gray-400/20 text-gray-500" :
-                      i === 2 ? "bg-orange-400/20 text-orange-500" :
-                      "bg-primary/10 text-primary"
-                    )}>
-                      {i + 1}
-                    </span>
-                    <div>
-                      <p className="text-sm font-medium">{c.name}</p>
-                      <p className="text-xs text-muted-foreground">{c.count.toLocaleString('tr-TR')} adet</p>
+              {topCustomers.map((c, i) => {
+                const maxTotal = topCustomers[0]?.total || 1
+                const barWidth = (c.total / maxTotal) * 100
+                return (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                    className="space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between py-1">
+                      <div className="flex items-center gap-3">
+                        <span className={cn(
+                          "w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center",
+                          i === 0 ? "bg-amber-500/20 text-amber-600" :
+                          i === 1 ? "bg-gray-400/20 text-gray-500" :
+                          i === 2 ? "bg-orange-400/20 text-orange-500" :
+                          "bg-primary/10 text-primary"
+                        )}>
+                          {i + 1}
+                        </span>
+                        <div>
+                          <p className="text-sm font-medium">{c.name}</p>
+                          <p className="text-xs text-muted-foreground">{c.count.toLocaleString('tr-TR')} adet</p>
+                        </div>
+                      </div>
+                      <p className="text-sm font-semibold text-emerald-600">
+                        ₺{c.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                      </p>
                     </div>
-                  </div>
-                  <p className="text-sm font-semibold text-emerald-600">
-                    ₺{c.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
-                  </p>
-                </motion.div>
-              ))}
+                    <div className="h-1.5 bg-muted rounded-full overflow-hidden ml-10">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${barWidth}%` }}
+                        transition={{ delay: 0.3 + i * 0.05, duration: 0.5 }}
+                        className={cn(
+                          "h-full rounded-full",
+                          i === 0 ? "bg-amber-500" :
+                          i === 1 ? "bg-gray-400" :
+                          i === 2 ? "bg-orange-400" :
+                          "bg-primary/60"
+                        )}
+                      />
+                    </div>
+                  </motion.div>
+                )
+              })}
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Quick Stats */}
+      {/* Quick Stats Row */}
       <div className="grid grid-cols-2 gap-3">
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveTab('customers')}>
+        <Card className="hover:shadow-md transition-shadow cursor-pointer group" onClick={() => setActiveTab('customers')}>
           <CardContent className="p-4 text-center">
+            <div className="w-10 h-10 rounded-xl bg-teal-500/10 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+              <Users className="w-5 h-5 text-teal-500" />
+            </div>
             <p className="text-2xl font-bold text-primary">{customers?.length ?? 0}</p>
-            <p className="text-xs text-muted-foreground mt-1">Toplam Müşteri</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Toplam Müşteri</p>
           </CardContent>
         </Card>
-        <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setActiveTab('services')}>
+        <Card className="hover:shadow-md transition-shadow cursor-pointer group" onClick={() => setActiveTab('services')}>
           <CardContent className="p-4 text-center">
+            <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+              <Shirt className="w-5 h-5 text-rose-500" />
+            </div>
             <p className="text-2xl font-bold text-primary">{services?.length ?? 0}</p>
-            <p className="text-xs text-muted-foreground mt-1">Toplam Hizmet</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Toplam Hizmet</p>
           </CardContent>
         </Card>
       </div>
     </div>
   )
 }
-
-
