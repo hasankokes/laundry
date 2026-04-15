@@ -981,7 +981,7 @@ export function DailyEntry() {
                               ₺{record.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
                             </p>
                             <p className="text-[10px] text-muted-foreground">
-                              ₺{record.unitPrice.toFixed(2)}/ad
+                              ₺{record.unitPrice.toFixed(2)}/{record.service?.unit || 'adet'}
                             </p>
                           </div>
                           <div className="flex flex-col gap-0.5">

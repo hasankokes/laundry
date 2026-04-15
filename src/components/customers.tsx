@@ -19,6 +19,13 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -47,10 +54,24 @@ import {
   ChevronDown,
   ChevronUp,
   Eye,
+  Tag,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
+
+// Tag configuration with colors, icons
+const TAG_CONFIG: Record<string, { label: string; color: string; bg: string; icon: string }> = {
+  Otel: { label: 'Otel', color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-100 dark:bg-emerald-950', icon: '🏨' },
+  Restoran: { label: 'Restoran', color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-950', icon: '🍽️' },
+  Hastane: { label: 'Hastane', color: 'text-rose-700 dark:text-rose-300', bg: 'bg-rose-100 dark:bg-rose-950', icon: '🏥' },
+  Villa: { label: 'Villa', color: 'text-violet-700 dark:text-violet-300', bg: 'bg-violet-100 dark:bg-violet-950', icon: '🏡' },
+  'Spor Kulübü': { label: 'Spor Kulübü', color: 'text-sky-700 dark:text-sky-300', bg: 'bg-sky-100 dark:bg-sky-950', icon: '⚽' },
+  Yurt: { label: 'Yurt', color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-950', icon: '🏢' },
+  Diğer: { label: 'Diğer', color: 'text-gray-700 dark:text-gray-300', bg: 'bg-gray-100 dark:bg-gray-950', icon: '📌' },
+}
+
+const TAG_OPTIONS = ['Otel', 'Restoran', 'Hastane', 'Villa', 'Spor Kulübü', 'Yurt', 'Diğer']
 
 // Hash-based color generator for initials avatars
 function getAvatarColor(name: string): string {
@@ -73,6 +94,7 @@ export function Customers() {
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [tagFilter, setTagFilter] = useState<string>('')
   const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null)
 
   const { data: customers, isLoading } = useCustomers()
@@ -83,12 +105,9 @@ export function Customers() {
   const deleteCustomer = useDeleteCustomer()
   const setPrice = useSetPrice()
 
-  const filteredCustomers = searchQuery
-    ? customers?.filter(c =>
-        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.phone?.includes(searchQuery)
-      )
-    : customers
+  const filteredCustomers = customers
+    ?.filter(c => !searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.phone?.includes(searchQuery))
+    ?.filter(c => !tagFilter || c.tag === tagFilter)
 
   const handleAddCustomer = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -97,6 +116,7 @@ export function Customers() {
     const phone = formData.get('phone') as string
     const address = formData.get('address') as string
     const notes = formData.get('notes') as string
+    const tag = formData.get('tag') as string
 
     if (!name?.trim()) {
       toast.error('Müşteri adı gereklidir')
@@ -109,6 +129,7 @@ export function Customers() {
         phone: phone?.trim() || undefined,
         address: address?.trim() || undefined,
         notes: notes?.trim() || undefined,
+        tag: tag || undefined,
       })
       toast.success('Müşteri eklendi')
       setAddOpen(false)
@@ -124,6 +145,7 @@ export function Customers() {
     const phone = formData.get('phone') as string
     const address = formData.get('address') as string
     const notes = formData.get('notes') as string
+    const tag = formData.get('tag') as string
 
     try {
       await updateCustomer.mutateAsync({
@@ -132,6 +154,7 @@ export function Customers() {
         phone: phone?.trim() || undefined,
         address: address?.trim() || undefined,
         notes: notes?.trim() || undefined,
+        tag: tag || undefined,
       })
       toast.success('Müşteri güncellendi')
       setEditOpen(false)
@@ -307,6 +330,43 @@ export function Customers() {
         )}
       </div>
 
+      {/* Tag Filter Pills */}
+      {customers && customers.length > 0 && (
+        <div className="flex gap-1.5 flex-wrap">
+          <button
+            onClick={() => setTagFilter('')}
+            className={cn(
+              "px-3 py-1 rounded-full text-xs font-medium transition-all",
+              !tagFilter
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            )}
+          >
+            Tümü
+          </button>
+          {TAG_OPTIONS.filter(tag => customers?.some(c => c.tag === tag)).map(tag => {
+            const config = TAG_CONFIG[tag]
+            const count = customers?.filter(c => c.tag === tag).length ?? 0
+            return (
+              <button
+                key={tag}
+                onClick={() => setTagFilter(tagFilter === tag ? '' : tag)}
+                className={cn(
+                  "px-3 py-1 rounded-full text-xs font-medium transition-all flex items-center gap-1",
+                  tagFilter === tag
+                    ? cn(config.bg, config.color, "shadow-sm ring-1 ring-current/20")
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                )}
+              >
+                <span>{config.icon}</span>
+                <span>{config.label}</span>
+                <span className="opacity-60">({count})</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {/* Add Customer */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <Button className="w-full h-12 gap-2" onClick={() => setAddOpen(true)}>
@@ -321,6 +381,18 @@ export function Customers() {
             <div className="space-y-2">
               <Label>Ad *</Label>
               <Input name="name" placeholder="Müşteri adı" required />
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5"><Tag className="w-3.5 h-3.5" />Etiket</Label>
+              <Select name="tag" defaultValue="">
+                <SelectTrigger><SelectValue placeholder="Etiket seçin" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Etiket yok</SelectItem>
+                  {TAG_OPTIONS.map(tag => (
+                    <SelectItem key={tag} value={tag}>{TAG_CONFIG[tag].icon} {tag}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Telefon</Label>
@@ -375,7 +447,15 @@ export function Customers() {
                         {customer.name.charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0">
-                        <p className="font-medium text-sm truncate">{customer.name}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium text-sm truncate">{customer.name}</p>
+                          {customer.tag && TAG_CONFIG[customer.tag] && (
+                            <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium inline-flex items-center gap-0.5", TAG_CONFIG[customer.tag].bg, TAG_CONFIG[customer.tag].color)}>
+                              <span>{TAG_CONFIG[customer.tag].icon}</span>
+                              {TAG_CONFIG[customer.tag].label}
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
                           {customer.phone && (
                             <span className="flex items-center gap-1">
@@ -515,6 +595,18 @@ export function Customers() {
             <div className="space-y-2">
               <Label>Ad *</Label>
               <Input name="name" defaultValue={selectedCustomerData?.name} required />
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5"><Tag className="w-3.5 h-3.5" />Etiket</Label>
+              <Select name="tag" defaultValue={selectedCustomerData?.tag ?? ''}>
+                <SelectTrigger><SelectValue placeholder="Etiket seçin" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Etiket yok</SelectItem>
+                  {TAG_OPTIONS.map(tag => (
+                    <SelectItem key={tag} value={tag}>{TAG_CONFIG[tag].icon} {tag}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Telefon</Label>
