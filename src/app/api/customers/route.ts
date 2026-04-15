@@ -26,7 +26,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, phone, address, notes } = body
+    const { name, phone, address, notes, tag } = body
 
     if (!name || typeof name !== 'string' || name.trim() === '') {
       return NextResponse.json(
@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
         phone: phone?.trim() || null,
         address: address?.trim() || null,
         notes: notes?.trim() || null,
+        tag: tag?.trim() || null,
       },
     })
 

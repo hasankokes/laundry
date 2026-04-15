@@ -48,7 +48,7 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { name, phone, address, notes } = body
+    const { name, phone, address, notes, tag } = body
 
     const existing = await db.customer.findUnique({ where: { id } })
     if (!existing) {
@@ -65,6 +65,7 @@ export async function PUT(
         phone: phone !== undefined ? phone?.trim() || null : undefined,
         address: address !== undefined ? address?.trim() || null : undefined,
         notes: notes !== undefined ? notes?.trim() || null : undefined,
+        tag: tag !== undefined ? tag?.trim() || null : undefined,
       },
     })
 
