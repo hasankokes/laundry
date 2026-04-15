@@ -6,6 +6,7 @@ import { DailyEntry } from '@/components/daily-entry'
 import { Customers } from '@/components/customers'
 import { Services } from '@/components/services'
 import { Reports } from '@/components/reports'
+import { Settings } from '@/components/settings'
 import { ThemeToggle } from '@/components/theme-toggle'
 import {
   Home,
@@ -13,6 +14,7 @@ import {
   Users,
   Shirt,
   FileText,
+  Settings as SettingsIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -23,6 +25,7 @@ const tabs: { id: TabType; label: string; icon: React.ElementType }[] = [
   { id: 'customers', label: 'Müşteriler', icon: Users },
   { id: 'services', label: 'Hizmetler', icon: Shirt },
   { id: 'reports', label: 'Raporlar', icon: FileText },
+  { id: 'settings', label: 'Ayarlar', icon: SettingsIcon },
 ]
 
 const tabComponents: Record<TabType, React.ComponentType> = {
@@ -31,6 +34,7 @@ const tabComponents: Record<TabType, React.ComponentType> = {
   customers: Customers,
   services: Services,
   reports: Reports,
+  settings: Settings,
 }
 
 export default function HomePage() {

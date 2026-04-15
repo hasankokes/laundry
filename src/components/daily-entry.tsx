@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useCustomers, useServices, usePrices, useCreateRecord, useRecords, useDeleteRecord, useUpdateRecord } from '@/hooks/use-api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog'
 import {
   Select,
@@ -34,8 +36,14 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Textarea } from '@/components/ui/textarea'
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import {
   PlusCircle, Trash2, Calendar, Search, X, Check,
-  ChevronLeft, ChevronRight, Copy, StickyNote, TrendingUp
+  ChevronLeft, ChevronRight, Copy, StickyNote, TrendingUp,
+  RotateCcw, Zap, ChevronDown
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -47,6 +55,7 @@ interface ServiceEntry {
 }
 
 const dayNames = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi']
+const weekDayAbbr = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
 
 function formatDisplayDate(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -55,8 +64,21 @@ function formatDisplayDate(dateStr: string) {
   return `${d}.${m}.${y} ${dayName}`
 }
 
+function getDateStr(date: Date) {
+  return date.toISOString().split('T')[0]
+}
+
+function getMonday(d: Date) {
+  const date = new Date(d)
+  const day = date.getDay()
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1)
+  date.setDate(diff)
+  return date
+}
+
 export function DailyEntry() {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const today = useMemo(() => getDateStr(new Date()), [])
+  const [selectedDate, setSelectedDate] = useState(today)
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -69,6 +91,13 @@ export function DailyEntry() {
   ])
   const [batchNotes, setBatchNotes] = useState('')
 
+  // Repeat Yesterday state
+  const [repeatDialogOpen, setRepeatDialogOpen] = useState(false)
+
+  // Quick Entry state
+  const [quickEntryOpen, setQuickEntryOpen] = useState(false)
+  const [quickQuantities, setQuickQuantities] = useState<Record<string, Record<string, number>>>({})
+
   const { data: customers, isLoading: customersLoading } = useCustomers()
   const { data: services, isLoading: servicesLoading } = useServices()
   const { data: prices } = usePrices(selectedCustomer !== 'all' && selectedCustomer ? selectedCustomer : undefined)
@@ -77,15 +106,78 @@ export function DailyEntry() {
   const deleteRecord = useDeleteRecord()
   const updateRecord = useUpdateRecord()
 
+  // Yesterday's records for "Repeat Yesterday" feature
+  const yesterdayDate = useMemo(() => {
+    const [y, m, d] = selectedDate.split('-').map(Number)
+    const date = new Date(y, m - 1, d)
+    date.setDate(date.getDate() - 1)
+    return getDateStr(date)
+  }, [selectedDate])
+
+  const { data: yesterdayRecords } = useRecords({ date: yesterdayDate })
+
+  // Quick entry: recent records (last 7 days) to determine active customers & top services
+  const sevenDaysAgo = useMemo(() => {
+    const date = new Date()
+    date.setDate(date.getDate() - 7)
+    return getDateStr(date)
+  }, [])
+
+  const { data: recentRecords } = useRecords({ startDate: sevenDaysAgo, endDate: today })
+
+  const isToday = selectedDate === today
+  const hasNoRecordsToday = !records || records.length === 0
+  const canRepeatYesterday = isToday && hasNoRecordsToday && !!yesterdayRecords && yesterdayRecords.length > 0
+
+  // Active customers: customers with records in the last 7 days
+  const activeCustomers = useMemo(() => {
+    if (!recentRecords || !customers) return []
+    const customerIds = new Set(recentRecords.map(r => r.customerId))
+    return customers.filter(c => customerIds.has(c.id))
+  }, [recentRecords, customers])
+
+  // Top 3 services: most used services in last 7 days
+  const topServices = useMemo(() => {
+    if (!recentRecords || !services) return []
+    const serviceCount: Record<string, number> = {}
+    for (const r of recentRecords) {
+      serviceCount[r.serviceId] = (serviceCount[r.serviceId] || 0) + 1
+    }
+    const sorted = Object.entries(serviceCount)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([id]) => services.find(s => s.id === id))
+      .filter(Boolean) as typeof services
+    return sorted
+  }, [recentRecords, services])
+
   // Date navigation
   const navigateDate = (direction: number) => {
     const [y, m, d] = selectedDate.split('-').map(Number)
     const date = new Date(y, m - 1, d)
     date.setDate(date.getDate() + direction)
-    setSelectedDate(date.toISOString().split('T')[0])
+    setSelectedDate(getDateStr(date))
   }
 
-  const isToday = selectedDate === new Date().toISOString().split('T')[0]
+  // Week days for the week-day selector strip
+  const weekDays = useMemo(() => {
+    const [y, m, d] = selectedDate.split('-').map(Number)
+    const selected = new Date(y, m - 1, d)
+    const monday = getMonday(selected)
+    const days = []
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(monday)
+      day.setDate(monday.getDate() + i)
+      days.push({
+        date: getDateStr(day),
+        abbr: weekDayAbbr[i],
+        dayNum: day.getDate(),
+        isToday: getDateStr(day) === today,
+        isSelected: getDateStr(day) === selectedDate,
+      })
+    }
+    return days
+  }, [selectedDate, today])
 
   // Filter records by selected customer or show all
   const filteredRecords = selectedCustomer && selectedCustomer !== 'all'
@@ -108,6 +200,17 @@ export function DailyEntry() {
     const service = services?.find(s => s.id === serviceId)
     return service?.defaultPrice ?? 0
   }
+
+  // Get price for quick entry (fetches from all prices if needed)
+  const getQuickPrice = useCallback((customerId: string, serviceId: string) => {
+    // Check customer-specific prices from recent records
+    if (recentRecords) {
+      const match = recentRecords.find(r => r.customerId === customerId && r.serviceId === serviceId)
+      if (match) return match.unitPrice
+    }
+    const service = services?.find(s => s.id === serviceId)
+    return service?.defaultPrice ?? 0
+  }, [recentRecords, services])
 
   const handleBatchSubmit = async () => {
     if (!selectedCustomer || selectedCustomer === 'all') {
@@ -198,6 +301,77 @@ export function DailyEntry() {
     }
   }
 
+  // Repeat Yesterday handler
+  const handleRepeatYesterday = async () => {
+    if (!yesterdayRecords || yesterdayRecords.length === 0) return
+
+    try {
+      for (const record of yesterdayRecords) {
+        await createRecord.mutateAsync({
+          customerId: record.customerId,
+          serviceId: record.serviceId,
+          date: selectedDate,
+          quantity: record.quantity,
+          unitPrice: record.unitPrice,
+          notes: record.notes || undefined,
+        })
+      }
+      toast.success(`${yesterdayRecords.length} kayıt bugüne kopyalandı`)
+      setRepeatDialogOpen(false)
+    } catch {
+      toast.error('Kayıtlar kopyalanırken hata oluştu')
+    }
+  }
+
+  // Quick Entry handlers
+  const updateQuickQuantity = (customerId: string, serviceId: string, value: number) => {
+    setQuickQuantities(prev => ({
+      ...prev,
+      [customerId]: {
+        ...prev[customerId],
+        [serviceId]: value,
+      }
+    }))
+  }
+
+  const handleQuickSave = async () => {
+    const entries: { customerId: string; serviceId: string; quantity: number; unitPrice: number }[] = []
+
+    for (const [customerId, services] of Object.entries(quickQuantities)) {
+      for (const [serviceId, quantity] of Object.entries(services)) {
+        if (quantity > 0) {
+          entries.push({
+            customerId,
+            serviceId,
+            quantity,
+            unitPrice: getQuickPrice(customerId, serviceId),
+          })
+        }
+      }
+    }
+
+    if (entries.length === 0) {
+      toast.error('En az bir giriş yapın')
+      return
+    }
+
+    try {
+      for (const entry of entries) {
+        await createRecord.mutateAsync({
+          customerId: entry.customerId,
+          serviceId: entry.serviceId,
+          date: selectedDate,
+          quantity: entry.quantity,
+          unitPrice: entry.unitPrice,
+        })
+      }
+      toast.success(`${entries.length} kayıt eklendi`)
+      setQuickQuantities({})
+    } catch {
+      toast.error('Kayıtlar eklenirken hata oluştu')
+    }
+  }
+
   const batchTotal = batchEntries.reduce((sum, e) => sum + (e.quantity * e.unitPrice), 0)
   const dayTotal = displayedRecords?.reduce((sum, r) => sum + r.total, 0) ?? 0
 
@@ -250,7 +424,7 @@ export function DailyEntry() {
             variant="ghost"
             size="sm"
             className="shrink-0 text-xs"
-            onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+            onClick={() => setSelectedDate(today)}
           >
             Bugün
           </Button>
@@ -262,6 +436,25 @@ export function DailyEntry() {
         <p className="text-sm font-semibold text-muted-foreground">
           {formatDisplayDate(selectedDate)}
         </p>
+      </div>
+
+      {/* Week Day Selector Strip */}
+      <div className="flex gap-1 justify-center">
+        {weekDays.map(day => (
+          <Button
+            key={day.date}
+            variant={day.isSelected ? 'default' : 'outline'}
+            size="sm"
+            className="flex flex-col items-center gap-0 h-auto py-1.5 px-2 min-w-[40px] relative"
+            onClick={() => setSelectedDate(day.date)}
+          >
+            <span className="text-[10px] font-medium leading-tight">{day.abbr}</span>
+            <span className="text-sm font-bold leading-tight">{day.dayNum}</span>
+            {day.isToday && !day.isSelected && (
+              <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+            )}
+          </Button>
+        ))}
       </div>
 
       {/* Customer Filter */}
@@ -290,7 +483,216 @@ export function DailyEntry() {
         </div>
       </div>
 
-      {/* Add Record Button */}
+      {/* Action Buttons */}
+      <div className="flex gap-2">
+        <Button className="flex-1 h-12 gap-2" onClick={() => setDialogOpen(true)}>
+          <PlusCircle className="w-5 h-5" />
+          Yeni Kayıt Ekle
+        </Button>
+        {canRepeatYesterday && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+          >
+            <Button
+              variant="outline"
+              className="h-12 gap-2 border-amber-300 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-700 dark:hover:bg-amber-950"
+              onClick={() => setRepeatDialogOpen(true)}
+            >
+              <RotateCcw className="w-5 h-5" />
+              <span className="hidden sm:inline">Dünü Tekrarla</span>
+              <span className="sm:hidden">Dünün</span>
+            </Button>
+          </motion.div>
+        )}
+      </div>
+
+      {/* Quick Entry Section */}
+      {activeCustomers.length > 0 && topServices.length > 0 && (
+        <Collapsible open={quickEntryOpen} onOpenChange={setQuickEntryOpen}>
+          <CollapsibleTrigger asChild>
+            <Button
+              variant="ghost"
+              className="w-full gap-2 text-primary hover:text-primary hover:bg-primary/5"
+            >
+              <Zap className="w-4 h-4" />
+              Hızlı Giriş
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                {activeCustomers.length} müşteri
+              </Badge>
+              <motion.div
+                animate={{ rotate: quickEntryOpen ? 180 : 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <ChevronDown className="w-4 h-4" />
+              </motion.div>
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <Card className="border-primary/20">
+                <CardHeader className="py-3 px-4">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-primary" />
+                    Hızlı Giriş - Toplu Kayıt
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 pt-0">
+                  {/* Quick Entry Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-2 px-2 font-medium text-muted-foreground text-xs">
+                            Müşteri
+                          </th>
+                          {topServices.map(service => (
+                            <th key={service.id} className="text-center py-2 px-1 font-medium text-muted-foreground text-xs min-w-[70px]">
+                              {service.name}
+                              <br />
+                              <span className="text-[10px] text-muted-foreground/70">
+                                ({service.unit})
+                              </span>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {activeCustomers.map(customer => (
+                          <tr key={customer.id} className="border-b last:border-0 hover:bg-muted/30">
+                            <td className="py-2 px-2 text-sm font-medium max-w-[120px] truncate">
+                              {customer.name}
+                            </td>
+                            {topServices.map(service => (
+                              <td key={service.id} className="py-1.5 px-1 text-center">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={quickQuantities[customer.id]?.[service.id] ?? 0}
+                                  onChange={(e) => updateQuickQuantity(
+                                    customer.id,
+                                    service.id,
+                                    parseInt(e.target.value) || 0
+                                  )}
+                                  className="h-8 w-full text-center text-sm p-1"
+                                  placeholder="0"
+                                />
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Quick Entry Summary & Save */}
+                  {Object.values(quickQuantities).some(s => Object.values(s).some(v => v > 0)) && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-3 flex items-center justify-between p-3 bg-primary/5 rounded-xl"
+                    >
+                      <div className="text-sm">
+                        <span className="font-medium">
+                          {Object.values(quickQuantities).reduce(
+                            (sum, s) => sum + Object.values(s).filter(v => v > 0).length, 0
+                          )} giriş
+                        </span>
+                        <span className="text-muted-foreground ml-1">yapıldı</span>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={handleQuickSave}
+                        disabled={createRecord.isPending}
+                      >
+                        {createRecord.isPending ? (
+                          <>
+                            <span className="animate-spin">⏳</span>
+                            Kaydediliyor...
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            Kaydet
+                          </>
+                        )}
+                      </Button>
+                    </motion.div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      {/* Repeat Yesterday Dialog */}
+      <Dialog open={repeatDialogOpen} onOpenChange={setRepeatDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="w-5 h-5 text-amber-600" />
+              Dünkü Kayıtları Tekrarla
+            </DialogTitle>
+            <DialogDescription>
+              Dünkü <strong>{yesterdayRecords?.length ?? 0}</strong> kayıt bugüne kopyalanacak.
+              Müşteri, hizmet, miktar ve birim fiyat bilgileri aynen aktarılacaktır.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+            {yesterdayRecords?.map(record => (
+              <div
+                key={record.id}
+                className="flex items-center justify-between p-2.5 rounded-lg bg-muted/50 text-sm"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{record.customer?.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {record.service?.name} × {record.quantity}
+                  </p>
+                </div>
+                <Badge variant="outline" className="ml-2 shrink-0 text-xs">
+                  ₺{record.total.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                </Badge>
+              </div>
+            ))}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setRepeatDialogOpen(false)}
+            >
+              İptal
+            </Button>
+            <Button
+              onClick={handleRepeatYesterday}
+              disabled={createRecord.isPending}
+              className="gap-2"
+            >
+              {createRecord.isPending ? (
+                <>
+                  <span className="animate-spin">⏳</span>
+                  Kopyalanıyor...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="w-4 h-4" />
+                  Kopyala
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Record Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => {
         setDialogOpen(open)
         if (open) {
@@ -298,10 +700,6 @@ export function DailyEntry() {
           setBatchNotes('')
         }
       }}>
-        <Button className="w-full h-12 gap-2" onClick={() => setDialogOpen(true)}>
-          <PlusCircle className="w-5 h-5" />
-          Yeni Kayıt Ekle
-        </Button>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Yeni Kayıt Ekle</DialogTitle>
@@ -599,14 +997,26 @@ export function DailyEntry() {
               <p className="text-xs text-muted-foreground mt-1 mb-4">
                 {formatDisplayDate(selectedDate)}
               </p>
-              <Button
-                variant="outline"
-                className="gap-2"
-                onClick={() => setDialogOpen(true)}
-              >
-                <PlusCircle className="w-4 h-4" />
-                Kayıt Ekle
-              </Button>
+              <div className="flex gap-2 justify-center">
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => setDialogOpen(true)}
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Kayıt Ekle
+                </Button>
+                {canRepeatYesterday && (
+                  <Button
+                    variant="outline"
+                    className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:border-amber-700 dark:hover:bg-amber-950"
+                    onClick={() => setRepeatDialogOpen(true)}
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Dünü Tekrarla
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
         )}

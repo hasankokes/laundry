@@ -285,9 +285,170 @@ Stage Summary:
 - **Styling**: Gradient cards, area charts, color-coded services, smooth animations
 - **Data**: 7 services, 4 customers, 35+ daily records
 
+---
+Task ID: 13
+Agent: Quick-Repeat Entry Agent
+Task: Add Quick-Repeat Entry and Enhanced Daily Entry Features
+
+Work Log:
+- Added "Dünü Tekrarla" (Repeat Yesterday) feature:
+  - Fetches records from the previous day (selectedDate - 1) using useRecords hook
+  - Shows a confirmation Dialog listing all records that will be copied with customer name, service, quantity, and total
+  - Dialog shows count: "Dünkü X kayıt bugüne kopyalanacak"
+  - On confirm, creates new records for today with same customerId, serviceId, quantity, unitPrice, notes
+  - Button only visible when selectedDate is today AND there are no records yet for today AND yesterday has records
+  - Button uses amber styling (border-amber-300) with RotateCcw icon
+  - Also added to empty state card alongside "Kayıt Ekle" button
+  - Spring animation on button appearance (framer-motion)
+  - Toast notification showing how many records were copied
+- Added Multi-Customer Quick Entry (Hızlı Giriş) mode:
+  - Collapsible section below action buttons, collapsed by default
+  - Uses shadcn/ui Collapsible component with animated ChevronDown
+  - Trigger button shows Zap icon, "Hızlı Giriş" label, and badge with active customer count
+  - Fetches records from last 7 days using useRecords({ startDate, endDate })
+  - Calculates active customers (those with records in last 7 days)
+  - Calculates top 3 most-used services from recent records
+  - Displays table-like interface: rows = active customers, columns = top 3 services
+  - Each cell has a number input (default 0) for quantity
+  - Service headers show name and unit abbreviation
+  - Summary bar appears when any quantity > 0, showing entry count
+  - "Kaydet" button creates all non-zero entries at once using createRecord
+  - Prices auto-detected from recent records or service default prices
+  - Toast notification on save with entry count
+  - Quick quantities stored in local state: Record<string, Record<string, number>>
+- Added Week-day Selector Strip:
+  - 7 day buttons for the current week (Mon-Sun) below the date display
+  - Turkish day abbreviations: Pzt, Sal, Çar, Per, Cum, Cmt, Paz
+  - Selected day highlighted with primary variant
+  - Today marked with a small dot indicator below the day number (when not selected)
+  - One-tap access to any day of the current week
+  - Calculates week Monday from selected date
+  - Each button shows abbreviation and day number
+- All text in Turkish
+- Used existing hooks: useRecords, useCreateRecord, useCustomers, useServices
+- Used shadcn/ui components: Dialog, Collapsible, CollapsibleContent, CollapsibleTrigger, Badge, Button, Input
+- Used framer-motion for smooth animations
+- Preserved all existing functionality (batch entry, grouped records, inline edit, delete, duplicate)
+- ESLint: 0 errors
+- Dev server: compiling successfully, no runtime errors
+
+Stage Summary:
+- "Dünü Tekrarla" feature allows one-click copying of yesterday's records to today
+- "Hızlı Giriş" provides multi-customer bulk entry with top 3 services in a table
+- Week-day selector gives quick one-tap week navigation
+- All features use existing API hooks and components
+- No schema changes, no new API routes needed
+
+## Current Project Status
+- **Phase**: Production-ready laundry management app with rich features
+- **All tabs working**: Dashboard, Daily Entry, Customers, Services, Reports
+- **Additional features**: Customer Detail View, Invoice/Fatura Generation, Quick-Repeat Entry, Week-day Selector
+- **Styling**: Gradient cards, area charts, color-coded services, smooth animations
+- **Data**: 7 services, 4 customers, 35+ daily records
+
 ## Unresolved Issues / Next Steps
 - Could add Excel import for customers and services
 - Could add PDF export for reports/invoices (beyond print dialog)
 - Could add multi-language support (English/Turkish)
 - Could add payment tracking (paid/unpaid status for invoices)
 - Could add data backup/restore functionality
+
+---
+Task ID: 12
+Agent: Settings Feature Agent
+Task: Build Settings (Ayarlar) Page with Data Export/Import and Company Info
+
+Work Log:
+- Updated Zustand store: added 'settings' to TabType union
+- Created /api/data/export/route.ts (GET): exports all customers, services, customerPrices, dailyRecords as JSON with metadata (exportDate, version, app)
+- Created /api/data/import/route.ts (POST): imports JSON data using upsert pattern for each entity (customers, services, prices, records), returns count of imported records per entity
+- Created /api/data/clear/route.ts (DELETE): clears all daily records while preserving customers, services, and prices, returns deleted count
+- Created /api/data/reset/route.ts (DELETE): deletes ALL data in correct FK order (records → prices → customers → services), returns counts per entity
+- Created /components/settings.tsx with 4 sections:
+  - Firma Bilgileri (Company Info): name, phone, address, tax number saved to localStorage key 'company-info', with defaults
+  - Veri Yönetimi (Data Management): Export All (JSON), Import (file picker for JSON), Export CSV buttons; shows last backup date
+  - Uygulama Tercihleri (App Preferences): KDV rate (20%), invoice due days (15), currency symbol (₺) saved to localStorage key 'app-preferences'
+  - Tehlikeli Bölge (Danger Zone): Clear All Records (double confirmation AlertDialog), Reset All Data (triple confirmation with "SİL" type-to-confirm)
+- Professional styling with:
+  - Section headers with colored icon backgrounds (teal for company, blue for data, purple for prefs, red for danger)
+  - Cards for each section with proper spacing
+  - framer-motion staggered section animations
+  - Loading spinners during async operations
+  - Toast notifications for all actions
+  - Turkish text throughout
+- Updated page.tsx: added Settings as 6th tab with SettingsIcon (lucide-react), added to tabComponents mapping
+- Re-seeded database after testing clear/reset endpoints
+- All API endpoints verified: export returns 4 customers, 7 services, 15 records; import round-trip successful; clear and reset working correctly
+- ESLint: 0 errors
+
+Stage Summary:
+- 6th tab "Ayarlar" added to navigation (both desktop and mobile)
+- Full data export/import pipeline with JSON and CSV support
+- Company info and app preferences persisted in localStorage
+- Danger zone with double/triple confirmation for destructive operations
+- All 6 tabs now working: Dashboard, Daily Entry, Customers, Services, Reports, Settings
+- No schema changes required
+
+---
+Task ID: 14
+Agent: Cron Review Agent (Round 3)
+Task: QA testing, Settings page, Quick-Repeat entry, Reports styling polish
+
+Work Log:
+- Performed comprehensive QA testing across all 6 tabs via agent-browser
+  - All tabs functional, no errors in dev server log
+  - All API endpoints returning correct data (including new /api/data/* endpoints)
+  - Invoice dialog, customer detail, settings page all verified
+- New Feature: Settings (Ayarlar) Page (built by subagent Task ID 12)
+  - 6th tab added to navigation (desktop + mobile)
+  - Firma Bilgileri: company name, phone, address, tax number (localStorage)
+  - Veri Yönetimi: JSON export/import, CSV export, last backup date
+  - Uygulama Tercihleri: KDV rate, invoice due days, currency
+  - Tehlikeli Bölge: clear records (double confirm), reset all (type "SİL")
+  - 4 new API routes: /api/data/export, /api/data/import, /api/data/clear, /api/data/reset
+- New Feature: Quick-Repeat Entry (built by subagent Task ID 13)
+  - "Dünü Tekrarla" button: one-click copy yesterday's records to today
+  - "Hızlı Giriş" collapsible: multi-customer bulk entry table with top 3 services
+  - Week-day selector strip: 7 buttons (Pzt-Sal-Çar-Per-Cum-Cmt-Paz) for current week
+- Reports page styling overhaul (built manually):
+  - Replaced flat stat cards with gradient cards (matching Dashboard style)
+  - Added daily average revenue badge on records card
+  - Changed chart from BarChart to AreaChart with gradient fill
+  - Added "Son 30 Gün" quick date selector (pill-style buttons)
+  - Added service distribution mini pie chart ("Dağılım")
+  - Added animated progress bars on service and customer breakdowns
+  - Added color-coded dots on service breakdown items
+  - Added customer ranking numbers with numbered badges
+  - Unified daily summary (responsive, no more separate mobile/desktop)
+  - Better empty state with subtitle text
+- All lint checks passing (0 errors)
+- Verified all features working via agent-browser
+
+Stage Summary:
+- App now has 6 tabs: Dashboard, Daily Entry, Customers, Services, Reports, Settings
+- Major new features: Settings page, Quick-Repeat entry, Weekday selector, Hızlı Giriş
+- Reports page now matches Dashboard's gradient card style
+- Full data management pipeline (export/import/clear/reset)
+- No runtime errors, all API endpoints functional
+
+## Current Project Status
+- **Phase**: Feature-complete laundry management app
+- **All 6 tabs working**: Dashboard, Daily Entry, Customers, Services, Reports, Settings
+- **Key features**: 
+  - Customer Detail View with full history and balance
+  - Invoice/Fatura Generation with KDV calculation and print
+  - Quick-Repeat Entry (copy yesterday's records)
+  - Multi-Customer Quick Entry (Hızlı Giriş)
+  - Weekday Selector for fast navigation
+  - Settings with company info, data export/import, preferences
+  - Data backup/restore (JSON), CSV export
+  - Dark mode, gradient cards, area charts, animations
+  - Monthly comparison on Dashboard
+- **Data**: 7 services, 4 customers, 35+ daily records
+
+## Unresolved Issues / Next Steps
+- Could add PDF export for reports/invoices (beyond print dialog)
+- Could add multi-language support (English/Turkish)
+- Could add payment tracking (paid/unpaid status for invoices)
+- Could add recurring/subscription billing for regular customers
+- Could integrate Settings company info into Invoice dialog
