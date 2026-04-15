@@ -9,6 +9,7 @@ export interface Customer {
   phone: string | null
   address: string | null
   notes: string | null
+  tag: string | null
   createdAt: string
   updatedAt: string
   _count?: { records: number; prices: number }
@@ -149,7 +150,7 @@ export function useCustomers() {
 export function useCreateCustomer() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (data: { name: string; phone?: string; address?: string; notes?: string }) => {
+    mutationFn: async (data: { name: string; phone?: string; address?: string; notes?: string; tag?: string }) => {
       const res = await fetch('/api/customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -165,7 +166,7 @@ export function useCreateCustomer() {
 export function useUpdateCustomer() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, ...data }: { id: string; name?: string; phone?: string; address?: string; notes?: string }) => {
+    mutationFn: async ({ id, ...data }: { id: string; name?: string; phone?: string; address?: string; notes?: string; tag?: string }) => {
       const res = await fetch(`/api/customers/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -403,11 +404,13 @@ export interface InvoiceData {
 }
 
 // Invoice hooks
-export function useInvoice(startDate: string, endDate: string, customerId: string) {
+export function useInvoice(startDate: string, endDate: string, customerId: string, kdvRate?: number, dueDays?: number) {
   return useQuery({
-    queryKey: ['invoice', startDate, endDate, customerId],
+    queryKey: ['invoice', startDate, endDate, customerId, kdvRate, dueDays],
     queryFn: async () => {
       const params = new URLSearchParams({ startDate, endDate, customerId })
+      if (kdvRate !== undefined) params.set('kdvRate', String(kdvRate))
+      if (dueDays !== undefined) params.set('dueDays', String(dueDays))
       const res = await fetch(`/api/invoice?${params.toString()}`)
       if (!res.ok) {
         const data = await res.json()
@@ -416,6 +419,156 @@ export function useInvoice(startDate: string, endDate: string, customerId: strin
       return res.json() as Promise<InvoiceData>
     },
     enabled: !!startDate && !!endDate && !!customerId,
+  })
+}
+
+// Dashboard types
+export interface DashboardData {
+  weeklyComparison: {
+    thisWeek: number
+    lastWeek: number
+    change: number
+  }
+  currentStreak: number
+  bestDay: {
+    date: string
+    amount: number
+  }
+  monthlyTarget: {
+    current: number
+    target: number
+    percentage: number
+  }
+  revenueByDayOfWeek: {
+    day: string
+    average: number
+    total: number
+    dayCount: number
+  }[]
+  topGrowthCustomer: {
+    name: string
+    thisMonth: number
+    lastMonth: number
+    change: number
+  } | null
+}
+
+// Dashboard hooks
+export function useDashboardData() {
+  return useQuery({
+    queryKey: ['dashboard'],
+    queryFn: async () => {
+      const res = await fetch('/api/dashboard')
+      if (!res.ok) throw new Error('Dashboard verileri yüklenemedi')
+      return res.json() as Promise<DashboardData>
+    },
+    staleTime: 1000 * 60 * 2, // 2 minutes
+  })
+}
+
+// Payment types
+export interface Payment {
+  id: string
+  customerId: string
+  amount: number
+  date: string
+  method: string
+  description: string | null
+  createdAt: string
+  updatedAt: string
+  customer?: { id: string; name: string; phone: string | null }
+}
+
+export interface CustomerBalance {
+  totalDebit: number
+  totalCredit: number
+  balance: number
+  recentPayments: Payment[]
+}
+
+// Payment hooks
+export function usePayments(filters?: { customerId?: string; startDate?: string; endDate?: string }) {
+  return useQuery({
+    queryKey: ['payments', filters],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (filters?.customerId) params.set('customerId', filters.customerId)
+      if (filters?.startDate) params.set('startDate', filters.startDate)
+      if (filters?.endDate) params.set('endDate', filters.endDate)
+      const res = await fetch(`/api/payments?${params.toString()}`)
+      if (!res.ok) throw new Error('Ödemeler yüklenemedi')
+      return res.json() as Promise<Payment[]>
+    },
+  })
+}
+
+export function useCreatePayment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (data: { customerId: string; amount: number; date: string; method?: string; description?: string }) => {
+      const res = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!res.ok) throw new Error('Ödeme oluşturulamadı')
+      return res.json()
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['payments'] })
+      qc.invalidateQueries({ queryKey: ['customer-balance'] })
+    },
+  })
+}
+
+export function useDeletePayment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/payments/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Ödeme silinemedi')
+      return res.json()
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['payments'] })
+      qc.invalidateQueries({ queryKey: ['customer-balance'] })
+    },
+  })
+}
+
+export function useCustomerBalance(customerId: string | null) {
+  return useQuery({
+    queryKey: ['customer-balance', customerId],
+    queryFn: async () => {
+      const res = await fetch(`/api/customers/${customerId}/balance`)
+      if (!res.ok) throw new Error('Bakiye yüklenemedi')
+      return res.json() as Promise<CustomerBalance>
+    },
+    enabled: !!customerId,
+  })
+}
+
+// Balance Overview types
+export interface BalanceOverviewItem {
+  customerId: string
+  customerName: string
+  phone: string | null
+  tag: string | null
+  totalDebit: number
+  totalCredit: number
+  balance: number
+}
+
+// Balance Overview hooks
+export function useBalanceOverview() {
+  return useQuery({
+    queryKey: ['balance-overview'],
+    queryFn: async () => {
+      const res = await fetch('/api/balance')
+      if (!res.ok) throw new Error('Bakiye özeti yüklenemedi')
+      return res.json() as Promise<BalanceOverviewItem[]>
+    },
+    staleTime: 1000 * 60 * 2, // 2 minutes
   })
 }
 

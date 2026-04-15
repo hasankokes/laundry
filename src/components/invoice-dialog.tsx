@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { useInvoice, InvoiceData } from '@/hooks/use-api'
 import {
   Dialog,
@@ -19,10 +20,39 @@ import {
   Calendar,
   FileText,
   AlertCircle,
+  Building2,
+  Landmark,
+  CreditCard,
 } from 'lucide-react'
 
-function formatCurrency(amount: number): string {
-  return amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+interface CompanyInfo {
+  name: string
+  address: string
+  phone: string
+  taxNumber: string
+}
+
+interface AppPreferences {
+  kdvRate: number
+  invoiceDueDays: number
+  currencySymbol: string
+}
+
+const defaultCompanyInfo: CompanyInfo = {
+  name: 'Çamaşırhane',
+  address: 'Atatürk Cad. No: 123, Kadıköy, İstanbul',
+  phone: '+90 (216) 555 0100',
+  taxNumber: '',
+}
+
+const defaultPreferences: AppPreferences = {
+  kdvRate: 20,
+  invoiceDueDays: 15,
+  currencySymbol: '₺',
+}
+
+function formatCurrency(amount: number, symbol: string): string {
+  return `${symbol}${amount.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 function formatDate(dateStr: string): string {
@@ -30,35 +60,75 @@ function formatDate(dateStr: string): string {
   return `${day}.${month}.${year}`
 }
 
-function InvoiceContent({ invoice }: { invoice: InvoiceData }) {
+function InvoiceContent({
+  invoice,
+  companyInfo,
+  preferences,
+}: {
+  invoice: InvoiceData
+  companyInfo: CompanyInfo
+  preferences: AppPreferences
+}) {
+  // Use preferences kdvRate for display (API may use a different rate)
+  const displayKdvRate = preferences.kdvRate
+  const cs = preferences.currencySymbol
+
+  // Recalculate KDV based on preferences in case they differ from API
+  const kdvAmount = invoice.subtotal * (displayKdvRate / 100)
+  const grandTotal = invoice.subtotal + kdvAmount
+
   return (
-    <div className="invoice-print bg-white text-gray-900 p-6 sm:p-8 font-sans">
-      {/* Company Header */}
-      <div className="flex items-start justify-between mb-8">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-teal-600 flex items-center justify-center">
-            <Shirt className="w-7 h-7 text-white" />
+    <div className="invoice-print bg-white text-gray-900 p-6 sm:p-8 font-sans relative overflow-hidden">
+      {/* Watermark */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden">
+        <span className="text-[8rem] font-black text-gray-100/60 -rotate-12 tracking-widest">
+          FATURA
+        </span>
+      </div>
+
+      {/* Company Header with gradient background */}
+      <div className="relative bg-gradient-to-r from-teal-600 via-teal-600 to-teal-500 rounded-xl p-5 mb-6 text-white">
+        <div className="flex items-start justify-between relative z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+              <Shirt className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold">{companyInfo.name}</h1>
+              <p className="text-xs font-medium uppercase tracking-wider text-teal-100">
+                Yönetim Sistemi
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-teal-700">Çamaşırhane</h1>
-            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Yönetim Sistemi</p>
+          <div className="text-right text-xs text-teal-100 space-y-0.5">
+            <p className="font-medium text-white flex items-center justify-end gap-1.5">
+              <Building2 className="w-3 h-3" />
+              {companyInfo.name}
+            </p>
+            {companyInfo.address && (
+              <p className="flex items-center justify-end gap-1.5">
+                <MapPin className="w-3 h-3 shrink-0" />
+                {companyInfo.address}
+              </p>
+            )}
+            {companyInfo.phone && (
+              <p className="flex items-center justify-end gap-1.5">
+                <Phone className="w-3 h-3 shrink-0" />
+                {companyInfo.phone}
+              </p>
+            )}
+            {companyInfo.taxNumber && (
+              <p className="flex items-center justify-end gap-1.5 text-teal-50">
+                <Landmark className="w-3 h-3 shrink-0" />
+                Vergi No: {companyInfo.taxNumber}
+              </p>
+            )}
           </div>
-        </div>
-        <div className="text-right text-xs text-gray-500 space-y-0.5">
-          <p className="font-medium text-gray-700">Çamaşırhane Yönetim Sistemi</p>
-          <p>Atatürk Cad. No: 123</p>
-          <p>Kadıköy, İstanbul 34710</p>
-          <p className="flex items-center justify-end gap-1">
-            <Phone className="w-3 h-3" />
-            +90 (216) 555 0100
-          </p>
         </div>
       </div>
 
-      <Separator className="bg-teal-600 h-0.5 mb-6" />
-
       {/* Invoice Title & Info */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex items-start justify-between mb-6 relative z-10">
         <div>
           <h2 className="text-2xl font-bold text-gray-800 mb-1">FATURA</h2>
           <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -83,7 +153,7 @@ function InvoiceContent({ invoice }: { invoice: InvoiceData }) {
       </div>
 
       {/* Customer Info */}
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6 relative z-10">
         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Müşteri Bilgileri</h3>
         <p className="text-base font-bold text-gray-800">{invoice.customer.name}</p>
         {invoice.customer.address && (
@@ -101,7 +171,7 @@ function InvoiceContent({ invoice }: { invoice: InvoiceData }) {
       </div>
 
       {/* Service Table */}
-      <div className="mb-6 overflow-hidden">
+      <div className="mb-6 overflow-hidden relative z-10">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-teal-600 text-white">
@@ -123,8 +193,8 @@ function InvoiceContent({ invoice }: { invoice: InvoiceData }) {
                 <td className="py-2.5 px-3 font-medium text-gray-800">{item.serviceName}</td>
                 <td className="py-2.5 px-3 text-center text-gray-500">{item.unit}</td>
                 <td className="py-2.5 px-3 text-center text-gray-700 font-medium">{item.quantity}</td>
-                <td className="py-2.5 px-3 text-right text-gray-600">₺{formatCurrency(item.unitPrice)}</td>
-                <td className="py-2.5 px-3 text-right font-semibold text-gray-800">₺{formatCurrency(item.total)}</td>
+                <td className="py-2.5 px-3 text-right text-gray-600">{cs}{formatCurrency(item.unitPrice, '')}</td>
+                <td className="py-2.5 px-3 text-right font-semibold text-gray-800">{cs}{formatCurrency(item.total, '')}</td>
               </tr>
             ))}
           </tbody>
@@ -132,31 +202,60 @@ function InvoiceContent({ invoice }: { invoice: InvoiceData }) {
       </div>
 
       {/* Totals Section */}
-      <div className="flex justify-end mb-8">
-        <div className="w-72">
-          <div className="flex justify-between py-2 text-sm text-gray-600">
+      <div className="flex justify-end mb-8 relative z-10">
+        <div className="w-72 bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <div className="flex justify-between py-1.5 text-sm text-gray-600">
             <span>Ara Toplam</span>
-            <span className="font-medium">₺{formatCurrency(invoice.subtotal)}</span>
+            <span className="font-medium">{formatCurrency(invoice.subtotal, cs)}</span>
           </div>
-          <Separator className="my-1" />
-          <div className="flex justify-between py-2 text-sm text-gray-600">
-            <span>KDV (%{(invoice.kdvRate * 100).toFixed(0)})</span>
-            <span className="font-medium">₺{formatCurrency(invoice.kdvAmount)}</span>
+          <Separator className="my-1.5" />
+          <div className="flex justify-between py-1.5 text-sm text-gray-600">
+            <span>KDV (%{displayKdvRate})</span>
+            <span className="font-medium">{formatCurrency(kdvAmount, cs)}</span>
           </div>
-          <Separator className="my-1" />
-          <div className="flex justify-between py-3 text-base bg-teal-50 -mx-3 px-3 rounded-lg">
-            <span className="font-bold text-teal-800">Genel Toplam</span>
-            <span className="font-bold text-teal-700 text-lg">₺{formatCurrency(invoice.grandTotal)}</span>
+          <Separator className="my-1.5" />
+          <div className="flex justify-between py-2.5 text-base bg-teal-600 -mx-1 -mb-1 px-4 rounded-b-lg text-white">
+            <span className="font-bold">Genel Toplam</span>
+            <span className="font-bold text-lg">{formatCurrency(grandTotal, cs)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Payment Info Section */}
+      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4 relative z-10">
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+          <CreditCard className="w-3.5 h-3.5" />
+          Ödeme Bilgileri
+        </h3>
+        <div className="grid grid-cols-2 gap-4 text-xs text-gray-600">
+          <div>
+            <p className="font-medium text-gray-700">Banka</p>
+            <p>—</p>
+          </div>
+          <div>
+            <p className="font-medium text-gray-700">Hesap Adı</p>
+            <p>{companyInfo.name}</p>
+          </div>
+          <div>
+            <p className="font-medium text-gray-700">IBAN</p>
+            <p>—</p>
+          </div>
+          <div>
+            <p className="font-medium text-gray-700">Şube</p>
+            <p>—</p>
           </div>
         </div>
       </div>
 
       {/* Footer */}
-      <Separator className="mb-4" />
-      <div className="text-xs text-gray-400 space-y-1">
+      <Separator className="mb-4 relative z-10" />
+      <div className="text-xs text-gray-400 space-y-1 relative z-10">
         <p className="font-medium text-gray-500">Notlar:</p>
-        <p>Bu fata {invoice.recordCount} adet kayıt esas alınarak oluşturulmuştur.</p>
+        <p>Bu fatura {invoice.recordCount} adet kayıt esas alınarak oluşturulmuştur.</p>
         <p>Ödeme vade tarihine kadar yapılmalıdır. Gecikme durumunda yasal faiz uygulanır.</p>
+        {companyInfo.taxNumber && (
+          <p className="mt-1">Vergi No: {companyInfo.taxNumber}</p>
+        )}
         <p className="mt-2 text-gray-400">Bu fatura bilgilendirme amaçlıdır. Resmi belge yerine geçmez.</p>
       </div>
     </div>
@@ -171,6 +270,20 @@ interface InvoiceDialogProps {
   customerId: string
 }
 
+function loadFromLocalStorage<T>(key: string, defaults: T): T {
+  if (typeof window === 'undefined') return defaults
+  try {
+    const saved = localStorage.getItem(key)
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      return { ...defaults, ...parsed }
+    }
+  } catch {
+    // Use defaults if localStorage is corrupted
+  }
+  return defaults
+}
+
 export function InvoiceDialog({
   open,
   onOpenChange,
@@ -178,10 +291,23 @@ export function InvoiceDialog({
   endDate,
   customerId,
 }: InvoiceDialogProps) {
+  // Read from localStorage; re-read when dialog opens (open changes to true)
+  const companyInfo = useMemo<CompanyInfo>(() => {
+    if (!open) return defaultCompanyInfo
+    return loadFromLocalStorage('company-info', defaultCompanyInfo)
+  }, [open])
+
+  const preferences = useMemo<AppPreferences>(() => {
+    if (!open) return defaultPreferences
+    return loadFromLocalStorage('app-preferences', defaultPreferences)
+  }, [open])
+
   const { data: invoice, isLoading, error } = useInvoice(
     startDate,
     endDate,
-    customerId
+    customerId,
+    preferences.kdvRate,
+    preferences.invoiceDueDays
   )
 
   const handlePrint = () => {
@@ -226,7 +352,11 @@ export function InvoiceDialog({
               </p>
             </div>
           ) : invoice ? (
-            <InvoiceContent invoice={invoice} />
+            <InvoiceContent
+              invoice={invoice}
+              companyInfo={companyInfo}
+              preferences={preferences}
+            />
           ) : null}
         </div>
 

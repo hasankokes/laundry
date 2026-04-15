@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useCustomers, useServices, usePrices, useCreateRecord, useRecords, useDeleteRecord, useUpdateRecord } from '@/hooks/use-api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -43,7 +43,7 @@ import {
 import {
   PlusCircle, Trash2, Calendar, Search, X, Check,
   ChevronLeft, ChevronRight, Copy, StickyNote, TrendingUp,
-  RotateCcw, Zap, ChevronDown
+  RotateCcw, Zap, ChevronDown, GripVertical, Clock
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -78,6 +78,7 @@ function getMonday(d: Date) {
 
 export function DailyEntry() {
   const today = useMemo(() => getDateStr(new Date()), [])
+  const [currentTime, setCurrentTime] = useState('')
   const [selectedDate, setSelectedDate] = useState(today)
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -97,6 +98,16 @@ export function DailyEntry() {
   // Quick Entry state
   const [quickEntryOpen, setQuickEntryOpen] = useState(false)
   const [quickQuantities, setQuickQuantities] = useState<Record<string, Record<string, number>>>({})
+
+  // Update current time
+  useEffect(() => {
+    const updateTime = () => {
+      setCurrentTime(new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
+    }
+    updateTime()
+    const interval = setInterval(updateTime, 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   const { data: customers, isLoading: customersLoading } = useCustomers()
   const { data: services, isLoading: servicesLoading } = useServices()
@@ -392,6 +403,12 @@ export function DailyEntry() {
 
   return (
     <div className="space-y-4">
+      {/* Current Time Indicator */}
+      <div className="flex items-center justify-center gap-2 text-muted-foreground">
+        <Clock className="w-3.5 h-3.5" />
+        <span className="text-xs font-medium tabular-nums">{currentTime}</span>
+      </div>
+
       {/* Date Navigation */}
       <div className="flex items-center gap-2">
         <Button
@@ -445,7 +462,10 @@ export function DailyEntry() {
             key={day.date}
             variant={day.isSelected ? 'default' : 'outline'}
             size="sm"
-            className="flex flex-col items-center gap-0 h-auto py-1.5 px-2 min-w-[40px] relative"
+            className={cn(
+              "flex flex-col items-center gap-0 h-auto py-1.5 px-2 min-w-[40px] relative",
+              day.isSelected && "bg-gradient-to-b from-primary to-primary/90 ring-2 ring-primary/30 ring-offset-1"
+            )}
             onClick={() => setSelectedDate(day.date)}
           >
             <span className="text-[10px] font-medium leading-tight">{day.abbr}</span>
@@ -485,9 +505,12 @@ export function DailyEntry() {
 
       {/* Action Buttons */}
       <div className="flex gap-2">
-        <Button className="flex-1 h-12 gap-2" onClick={() => setDialogOpen(true)}>
+        <Button className="flex-1 h-12 gap-2 relative" onClick={() => setDialogOpen(true)}>
           <PlusCircle className="w-5 h-5" />
           Yeni Kayıt Ekle
+          {hasNoRecordsToday && isToday && (
+            <span className="absolute top-2 right-3 w-2 h-2 rounded-full bg-white pulse-dot-anim" />
+          )}
         </Button>
         {canRepeatYesterday && (
           <motion.div
@@ -839,7 +862,20 @@ export function DailyEntry() {
       </Dialog>
 
       {/* Day Summary */}
-      <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
+      <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20 relative overflow-hidden">
+        {/* Sparkline-like indicator bars */}
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-end gap-0.5 h-6 opacity-30">
+          {[...Array(7)].map((_, i) => {
+            const barHeight = Math.max(15, Math.min(100, 30 + Math.sin(i * 1.2) * 40 + Math.cos(i * 0.8) * 20))
+            return (
+              <div
+                key={i}
+                className="w-1 bg-primary rounded-full"
+                style={{ height: `${barHeight}%` }}
+              />
+            )
+          })}
+        </div>
         <CardContent className="p-4 flex items-center justify-between">
           <div>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
@@ -883,7 +919,9 @@ export function DailyEntry() {
                 <CardContent className="p-0">
                   <div className="divide-y">
                     {group.records.map((record) => (
-                      <div key={record.id} className="flex items-center justify-between py-2.5 px-4 hover:bg-muted/30 transition-colors">
+                      <div key={record.id} className="flex items-center justify-between py-2.5 px-4 hover:bg-muted/30 transition-colors group">
+                        {/* Drag handle visual indicator */}
+                        <GripVertical className="w-3.5 h-3.5 text-muted-foreground/0 group-hover:text-muted-foreground/40 transition-colors shrink-0 mr-1 cursor-grab" />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <p className="text-sm truncate">{record.service?.name}</p>

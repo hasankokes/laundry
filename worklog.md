@@ -452,3 +452,135 @@ Stage Summary:
 - Could add payment tracking (paid/unpaid status for invoices)
 - Could add recurring/subscription billing for regular customers
 - Could integrate Settings company info into Invoice dialog
+
+---
+Task ID: 3
+Agent: Frontend Styling Expert
+Task: Major styling improvements across all tabs
+
+Work Log:
+
+1. **Global CSS (globals.css)**:
+   - Added custom scrollbar with hover-expand effect (5px → 8px on hover, smooth transition)
+   - Added shimmer animation keyframes (background-position sweep for loading states)
+   - Added loading-bar animation keyframes (page transition indicator)
+   - Added pulse-dot animation keyframes (pulsing indicators)
+   - Added float-particle animation keyframes (floating dots in month selector)
+   - Added checkmark-draw animation keyframes (for save confirmations)
+   - Added border-glow animation keyframes with CSS custom property --glow-color
+   - Added `.shimmer-bg` class (transparent gradient sweep for white-bg cards)
+   - Added `.shimmer-gradient` class (light-to-lighter gradient shimmer, with dark mode variant)
+   - Added `.loading-bar` class (animated loading bar)
+   - Added `.pulse-dot-anim` class (pulsing dot)
+   - Added `.float-particle` class (floating background particle)
+   - Added `.border-glow-emerald`, `.border-glow-amber`, `.border-glow-teal`, `.border-glow-rose` classes with hover glow animation
+
+2. **Page (page.tsx)**:
+   - Added header bottom glow effect (gradient line + shadow below header)
+   - Added page transition loading bar at top of content area (AnimatedPresence + loading-bar class)
+   - Added gradient overlay on mobile bottom nav (bg-gradient-to-t from-card via-card/98 to-card/95 with backdrop-blur)
+   - Added gradient top border line on mobile nav
+
+3. **Dashboard (dashboard.tsx)**:
+   - Added floating particle/dot animation in month selector background (6 particles with staggered animation delays)
+   - Replaced Skeleton loading states with custom shimmer-bg (on gradient cards) and shimmer-gradient (on charts) for more natural pulse effect
+   - Added "Son güncelleme: [timestamp]" below quick action button with Clock icon
+   - Added pie chart legend items below chart with colored dots, service names, and percentage values
+   - Added border glow effect on hover for gradient stat cards (emerald, amber, teal, rose glow colors)
+
+4. **Daily Entry (daily-entry.tsx)**:
+   - Added current time indicator at top (Clock icon + real-time HH:MM:SS display, updates every second)
+   - Added sparkline-like CSS bar indicator in day summary card (7 bars with sin/cos-based heights)
+   - Added drag handle visual (GripVertical icon) on record items, visible on hover with cursor-grab
+   - Added pulsing dot on "Yeni Kayıt Ekle" button when there are no records for today (white pulse-dot-anim)
+   - Added gradient border on selected day in weekday selector (ring-2 ring-primary/30 ring-offset-1 + bg-gradient-to-b)
+
+5. **Customers (customers.tsx)**:
+   - Added initials avatar with hash-based color instead of Users icon (getAvatarColor function with 10 color palette)
+   - Added slide-in animation for expanded customer content (AnimatePresence + motion.div with opacity/height transition)
+   - Added thin colored left-border accent on each customer card based on record count (border-l-4: emerald >15, teal >8, amber >3, muted default)
+   - Added customer count badge next to search bar ("filtered / total" format)
+   - Added shadow-elevation on hover for customer cards (hover:shadow-lg transition-all)
+   - Added cn utility import for conditional class merging
+
+6. **Services (services.tsx)**:
+   - Added revenue indicator (₺ amount with DollarSign icon) on each service card showing total revenue from that service
+   - Added hover tooltip/inline expansion for unit price (group-hover:text-primary/80 transition-colors)
+   - Added pulse animation on "Yeni Hizmet Ekle" button (pulse-dot-anim white dot + group-hover:scale-110 on icon)
+   - Added useRecords hook import and usage for service revenue calculation
+   - Added group class to service cards for hover effects
+
+7. **Reports (reports.tsx)**:
+   - Added comparison badge showing if revenue is up/down vs previous period (ArrowUpRight/ArrowDownRight + percentage)
+   - Added previous period calculation using useMemo (equal-length period before current range)
+   - Added useReport for previous period data
+   - Enhanced gradient background on date range card header (from-primary/10 via-primary/5 to-transparent)
+   - Added loading shimmer animation (shimmer-gradient divs instead of Skeleton components)
+   - Added ArrowDownRight import and useMemo import
+
+8. **Settings (settings.tsx)**:
+   - Added version number display ("Çamaşırhane Yönetim Sistemi v1.0.0") at the bottom
+   - Added gradient separators between sections (h-px bg-gradient-to-r from-transparent via-border to-transparent)
+   - Added confirmation checkmark animation when saving (motion.div with scale 0→1 spring animation on Check icon, emerald color)
+   - Applied to both company info save and preferences save buttons
+
+- All lint checks passing (0 errors)
+- Build succeeds without errors
+- No new npm packages added
+- All text remains in Turkish
+- All existing functionality preserved
+
+Stage Summary:
+- Comprehensive styling improvements across all 6 tabs + global styles
+- New animations: floating particles, shimmer loading, pulse dots, border glow, checkmark spring
+- Enhanced UX: time indicator, drag handles, revenue indicators, comparison badges, version display
+- Better visual hierarchy: initials avatars, left-border accents, gradient separators, glow effects
+- Smooth scrollbar with hover-expand, gradient mobile nav, header glow, page transition bar
+
+---
+Task ID: 5
+Agent: Dashboard Enhancements Agent
+Task: Dashboard Enhancements - Weekly Comparison, Streak Tracking, Revenue Insights
+
+Work Log:
+
+1. **API Endpoint** (`/api/dashboard/route.ts`):
+   - Created GET endpoint returning comprehensive dashboard data
+   - weeklyComparison: this week (Monday-today) vs last week (previous Monday-Sunday) revenue with percentage change
+   - currentStreak: consecutive days with records going backwards from yesterday (efficient single query + Set lookup)
+   - bestDay: day with highest revenue in current month (date + amount)
+   - monthlyTarget: projected target based on (total revenue / days with data) × total days in month
+   - revenueByDayOfWeek: average revenue per day of week (Pzt-Sal-Çar-Per-Cum-Cmt-Paz) across all time, using unique dates for proper averaging
+   - topGrowthCustomer: customer with biggest positive revenue growth vs last month (name, thisMonth, lastMonth, change%); only returns customers with positive growth
+   - All queries use Prisma ORM with SQLite, server-side aggregation
+   - Error handling with Turkish error messages
+
+2. **Frontend Hook** (`use-api.ts`):
+   - Added DashboardData type interface covering all API response fields
+   - Added useDashboardData() hook with TanStack Query (2-minute staleTime)
+   - Proper TypeScript types for weekly comparison, streak, best day, monthly target, day-of-week revenue, top growth customer
+
+3. **Dashboard Component** (`dashboard.tsx`):
+   - Added imports: useDashboardData, Flame, Trophy, ArrowUp from lucide-react, Progress from shadcn/ui
+   - **A. Weekly Comparison Card**: Two side-by-side gradient mini cards (emerald=This Week, rose=Last Week), percentage change with arrow icon (up=green, down=red), centered change indicator
+   - **B. Streak & Best Day Row**: Two cards side by side - Streak (Flame icon, orange, "X gün üst üste") and Best Day (Trophy icon, amber, amount + formatted date)
+   - **C. Monthly Target Progress**: Progress bar with animated fill (emerald if ≥70%, amber if below), percentage display, current/target amounts, status text (✅ Hedefin üzerinde / ⚠️ Hedefin altında)
+   - **D. Revenue by Day of Week**: BarChart (recharts) with teal/emerald gradient bars, Turkish day names on X-axis, custom tooltip showing average revenue, 7-day view (Pzt through Paz)
+   - **E. Top Growth Customer**: Card with emerald border, customer name, this month/last month revenue comparison with arrow, percentage badge, ArrowUp icon; only shown when a customer has positive growth
+   - All new sections use framer-motion fade-in/slide-up animations with staggered delays
+   - Loading states use shimmer-gradient and shimmer-bg classes (consistent with existing Dashboard style)
+   - All text in Turkish
+   - All existing Dashboard functionality preserved (stat cards, area chart, pie chart, today's records, top customers, quick stats)
+   - Added test data record to demonstrate topGrowthCustomer feature (Otel Grand Plaza +712% growth)
+
+4. **Lint & Verification**:
+   - ESLint: 0 errors
+   - API verified via curl: returns correct data for all 6 data points
+   - Dev server: compiling successfully, no runtime errors
+
+Stage Summary:
+- Dashboard now shows weekly comparison, streak tracking, best day, monthly target progress, revenue by day of week chart, and top growth customer
+- New /api/dashboard endpoint provides all analytics data in a single request
+- All new sections match existing gradient card styling with teal/emerald/amber/rose color palette
+- Framer-motion animations on all new sections
+- All text in Turkish, all existing functionality preserved

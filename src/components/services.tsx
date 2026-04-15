@@ -6,6 +6,7 @@ import {
   useCreateService,
   useUpdateService,
   useDeleteService,
+  useRecords,
 } from '@/hooks/use-api'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -44,6 +45,7 @@ import {
   Shirt,
   Search,
   TrendingUp,
+  DollarSign,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -76,6 +78,7 @@ export function Services() {
   const [searchQuery, setSearchQuery] = useState('')
 
   const { data: services, isLoading } = useServices()
+  const { data: records } = useRecords({})
   const createService = useCreateService()
   const updateService = useUpdateService()
   const deleteService = useDeleteService()
@@ -165,11 +168,12 @@ export function Services() {
         </div>
       </div>
 
-      {/* Add Service */}
+      {/* Add Service - with pulse animation */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <Button className="w-full h-12 gap-2" onClick={() => setAddOpen(true)}>
-          <PlusCircle className="w-5 h-5" />
+        <Button className="w-full h-12 gap-2 relative group" onClick={() => setAddOpen(true)}>
+          <PlusCircle className="w-5 h-5 group-hover:scale-110 transition-transform" />
           Yeni Hizmet Ekle
+          <span className="absolute top-2 right-3 w-2 h-2 rounded-full bg-white/80 pulse-dot-anim" />
         </Button>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -227,6 +231,9 @@ export function Services() {
               const gradient = SERVICE_GRADIENTS[index % SERVICE_GRADIENTS.length]
               const icon = SERVICE_ICONS[index % SERVICE_ICONS.length]
 
+              // Calculate total revenue for this service from records
+              const serviceRevenue = records?.filter(r => r.serviceId === service.id).reduce((sum, r) => sum + r.total, 0) ?? 0
+
               return (
                 <motion.Card
                   key={service.id}
@@ -234,7 +241,7 @@ export function Services() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ delay: index * 0.03 }}
-                  className="overflow-hidden hover:shadow-md transition-all"
+                  className="overflow-hidden hover:shadow-md transition-all group"
                 >
                   <CardContent className="p-0">
                     <div className="flex">
@@ -253,13 +260,22 @@ export function Services() {
                                 <Badge variant="outline" className="text-[10px] h-5">
                                   {service.unit}
                                 </Badge>
-                                <span className="text-xs font-semibold text-primary">
+                                <span className="text-xs font-semibold text-primary group-hover:text-primary/80 transition-colors">
                                   ₺{service.defaultPrice.toFixed(2)} / {service.unit}
                                 </span>
                               </div>
                             </div>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
+                            {/* Revenue indicator */}
+                            {serviceRevenue > 0 && (
+                              <div className="text-right hidden sm:block">
+                                <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                                  <DollarSign className="w-3 h-3" />
+                                  <span className="text-xs font-bold">₺{serviceRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}</span>
+                                </div>
+                              </div>
+                            )}
                             {/* Record count with progress */}
                             <div className="text-right mr-1 hidden sm:block">
                               <p className="text-xs font-medium">{recordCount} kayıt</p>

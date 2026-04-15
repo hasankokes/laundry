@@ -44,7 +44,10 @@ export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-gradient-to-r from-primary via-primary to-teal-600 text-primary-foreground shadow-lg">
+      <header className="sticky top-0 z-50 bg-gradient-to-r from-primary via-primary to-teal-600 text-primary-foreground shadow-lg relative">
+        {/* Header bottom glow effect */}
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary-foreground/30 to-transparent" />
+        <div className="absolute -bottom-2 left-0 right-0 h-2 bg-gradient-to-b from-primary/10 to-transparent pointer-events-none" />
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary-foreground/20 flex items-center justify-center backdrop-blur-sm shadow-inner">
@@ -94,7 +97,19 @@ export default function HomePage() {
       </header>
 
       {/* Content */}
-      <main className="flex-1 overflow-y-auto pb-20 md:pb-6">
+      <main className="flex-1 overflow-y-auto pb-20 md:pb-6 relative">
+        {/* Page transition loading bar */}
+        <AnimatePresence>
+          <motion.div
+            key={`loading-${activeTab}`}
+            initial={{ opacity: 1 }}
+            animate={{ opacity: 0 }}
+            transition={{ duration: 0.8, delay: 0.3 }}
+            className="absolute top-0 left-0 right-0 h-0.5 z-10 overflow-hidden"
+          >
+            <div className="h-full bg-gradient-to-r from-primary via-teal-400 to-primary loading-bar" />
+          </motion.div>
+        </AnimatePresence>
         <div className="max-w-5xl mx-auto px-4 py-4">
           <AnimatePresence mode="wait">
             <motion.div
@@ -111,42 +126,47 @@ export default function HomePage() {
       </main>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-md border-t border-border shadow-lg safe-bottom">
-        <div className="flex justify-around items-center">
-          {tabs.map((tab) => {
-            const Icon = tab.icon
-            const isActive = activeTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  'relative flex flex-col items-center gap-0.5 py-2 px-3 min-w-0 transition-all',
-                  isActive
-                    ? 'text-primary'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <div className="relative">
-                  <Icon className={cn(
-                    'w-5 h-5 transition-all duration-200',
-                    isActive && 'scale-110'
-                  )} />
-                  {isActive && (
-                    <motion.div
-                      layoutId="mobile-tab-dot"
-                      className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary"
-                      transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
-                    />
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 safe-bottom">
+        {/* Gradient overlay background */}
+        <div className="absolute inset-0 bg-gradient-to-t from-card via-card/98 to-card/95 backdrop-blur-md" />
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+        <div className="relative border-t border-border/50 shadow-lg">
+          <div className="flex justify-around items-center">
+            {tabs.map((tab) => {
+              const Icon = tab.icon
+              const isActive = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    'relative flex flex-col items-center gap-0.5 py-2 px-3 min-w-0 transition-all',
+                    isActive
+                      ? 'text-primary'
+                      : 'text-muted-foreground hover:text-foreground'
                   )}
-                </div>
-                <span className={cn(
-                  'text-[10px] font-medium truncate transition-all',
-                  isActive ? 'text-primary' : 'text-muted-foreground'
-                )}>{tab.label}</span>
-              </button>
-            )
-          })}
+                >
+                  <div className="relative">
+                    <Icon className={cn(
+                      'w-5 h-5 transition-all duration-200',
+                      isActive && 'scale-110'
+                    )} />
+                    {isActive && (
+                      <motion.div
+                        layoutId="mobile-tab-dot"
+                        className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary"
+                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                  </div>
+                  <span className={cn(
+                    'text-[10px] font-medium truncate transition-all',
+                    isActive ? 'text-primary' : 'text-muted-foreground'
+                  )}>{tab.label}</span>
+                </button>
+              )
+            })}
+          </div>
         </div>
       </nav>
     </div>

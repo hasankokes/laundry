@@ -1,6 +1,6 @@
 'use client'
 
-import { useCustomerHistory, useUpdateCustomer, useServices, usePrices, useSetPrice } from '@/hooks/use-api'
+import { useCustomerHistory, useUpdateCustomer, useServices, usePrices, useSetPrice, useCustomerBalance, useDeletePayment } from '@/hooks/use-api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,6 +34,12 @@ import {
   DollarSign,
   Calendar,
   StickyNote,
+  CreditCard,
+  Trash2,
+  Wallet,
+  ArrowUpRight,
+  ArrowDownRight,
+  PlusCircle,
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import {
@@ -47,6 +53,18 @@ import {
 } from 'recharts'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { PaymentDialog } from './payment-dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 
 const monthNames = [
   'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
@@ -97,7 +115,10 @@ interface CustomerDetailProps {
 
 export function CustomerDetail({ customerId, onBack, onEditCustomer, onSetPrices }: CustomerDetailProps) {
   const { data, isLoading } = useCustomerHistory(customerId)
+  const { data: balanceData } = useCustomerBalance(customerId)
+  const deletePayment = useDeletePayment()
   const [editOpen, setEditOpen] = useState(false)
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
 
   const handleEditClick = () => {
     onEditCustomer(customerId)
@@ -105,6 +126,22 @@ export function CustomerDetail({ customerId, onBack, onEditCustomer, onSetPrices
 
   const handleSetPricesClick = () => {
     onSetPrices(customerId)
+  }
+
+  const handleDeletePayment = async (id: string) => {
+    try {
+      await deletePayment.mutateAsync(id)
+      toast.success('Ödeme silindi')
+    } catch {
+      toast.error('Ödeme silinirken hata oluştu')
+    }
+  }
+
+  const methodLabels: Record<string, string> = {
+    nakit: 'Nakit',
+    havale: 'Havale/EFT',
+    kredi_karti: 'Kredi Kartı',
+    pesin: 'Peşin',
   }
 
   if (isLoading) {
@@ -219,6 +256,140 @@ export function CustomerDetail({ customerId, onBack, onEditCustomer, onSetPrices
           )}
         </div>
       </motion.div>
+
+      {/* Balance Section */}
+      {balanceData && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08, duration: 0.3 }}
+          className="space-y-3"
+        >
+          <div className="grid grid-cols-3 gap-3">
+            <Card className="bg-gradient-to-br from-rose-500 to-rose-600 border-0 text-white">
+              <CardContent className="p-3">
+                <div className="flex items-center gap-1.5 text-white/70 mb-1">
+                  <TrendingUp className="w-3 h-3" />
+                  <span className="text-[10px] font-medium">Toplam Borç</span>
+                </div>
+                <p className="text-base font-bold">
+                  ₺{balanceData.totalDebit.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 text-white">
+              <CardContent className="p-3">
+                <div className="flex items-center gap-1.5 text-white/70 mb-1">
+                  <Wallet className="w-3 h-3" />
+                  <span className="text-[10px] font-medium">Toplam Ödeme</span>
+                </div>
+                <p className="text-base font-bold">
+                  ₺{balanceData.totalCredit.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className={balanceData.balance > 0
+              ? "bg-gradient-to-br from-amber-500 to-orange-500 border-0 text-white"
+              : balanceData.balance < 0
+                ? "bg-gradient-to-br from-emerald-500 to-teal-500 border-0 text-white"
+                : "bg-gradient-to-br from-gray-500 to-gray-600 border-0 text-white"
+            }>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-1.5 text-white/70 mb-1">
+                  <DollarSign className="w-3 h-3" />
+                  <span className="text-[10px] font-medium">Bakiye</span>
+                </div>
+                <p className="text-base font-bold">
+                  ₺{Math.abs(balanceData.balance).toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
+                </p>
+                <p className="text-[10px] text-white/70 mt-0.5">
+                  {balanceData.balance > 0 ? 'Borçlu' : balanceData.balance < 0 ? 'Alacaklı' : 'Borç Yok'}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Add Payment Button */}
+          <Button
+            variant="outline"
+            className="w-full gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:border-emerald-700 dark:hover:bg-emerald-950"
+            onClick={() => setPaymentDialogOpen(true)}
+          >
+            <PlusCircle className="w-4 h-4" />
+            Ödeme Ekle
+          </Button>
+
+          {/* Payment History */}
+          {balanceData.recentPayments.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-primary" />
+                  Ödeme Geçmişi
+                  <Badge variant="secondary" className="ml-auto text-[10px]">
+                    {balanceData.recentPayments.length} ödeme
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {balanceData.recentPayments.map((payment) => (
+                    <div
+                      key={payment.id}
+                      className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                          <ArrowDownRight className="w-4 h-4 text-emerald-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">
+                            ₺{payment.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>{formatDate(payment.date)}</span>
+                            <Badge variant="outline" className="text-[10px] h-5">
+                              {methodLabels[payment.method] || payment.method}
+                            </Badge>
+                          </div>
+                          {payment.description && (
+                            <p className="text-xs text-muted-foreground italic mt-0.5">{payment.description}</p>
+                          )}
+                        </div>
+                      </div>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Ödemeyi Sil</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              ₺{payment.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} tutarındaki ödemeyi silmek istediğinizden emin misiniz?
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>İptal</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDeletePayment(payment.id)}>Sil</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <PaymentDialog
+            open={paymentDialogOpen}
+            onOpenChange={setPaymentDialogOpen}
+            customerId={customerId}
+          />
+        </motion.div>
+      )}
 
       {/* Stats Row */}
       <div className="grid grid-cols-3 gap-3">

@@ -1,19 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { Prisma } from '@prisma/client'
 import crypto from 'crypto'
 
 // GET /api/invoice - Generate invoice for a customer in a date range
+// Optional query params: kdvRate (default 20), dueDays (default 15)
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const customerId = searchParams.get('customerId')
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
+    const kdvRateParam = searchParams.get('kdvRate')
+    const dueDaysParam = searchParams.get('dueDays')
 
     if (!customerId || !startDate || !endDate) {
       return NextResponse.json(
         { error: 'Müşteri, başlangıç ve bitiş tarihi gereklidir' },
+        { status: 400 }
+      )
+    }
+
+    // Parse optional params with defaults
+    const kdvRatePercent = kdvRateParam ? parseFloat(kdvRateParam) : 20
+    const dueDays = dueDaysParam ? parseInt(dueDaysParam, 10) : 15
+
+    // Validate parsed values
+    if (isNaN(kdvRatePercent) || kdvRatePercent < 0 || kdvRatePercent > 100) {
+      return NextResponse.json(
+        { error: 'Geçersiz KDV oranı (0-100 arası olmalıdır)' },
+        { status: 400 }
+      )
+    }
+    if (isNaN(dueDays) || dueDays < 1 || dueDays > 365) {
+      return NextResponse.json(
+        { error: 'Geçersiz vade süresi (1-365 arası olmalıdır)' },
         { status: 400 }
       )
     }
@@ -101,7 +121,7 @@ export async function GET(request: NextRequest) {
     }
 
     const subtotal = lineItems.reduce((sum, item) => sum + item.total, 0)
-    const kdvRate = 0.20
+    const kdvRate = kdvRatePercent / 100
     const kdvAmount = subtotal * kdvRate
     const grandTotal = subtotal + kdvAmount
 
@@ -111,9 +131,9 @@ export async function GET(request: NextRequest) {
     const sequential = parseInt(hash.substring(0, 4), 16) % 10000
     const invoiceNumber = `FTR-${startDate.replace(/-/g, '')}-${String(sequential).padStart(4, '0')}`
 
-    // Due date: 15 days after end date
+    // Due date: dueDays after end date
     const dueDate = new Date(endDate)
-    dueDate.setDate(dueDate.getDate() + 15)
+    dueDate.setDate(dueDate.getDate() + dueDays)
     const dueDateStr = dueDate.toISOString().split('T')[0]
 
     const invoice = {

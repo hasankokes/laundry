@@ -13,10 +13,12 @@ model Customer {
   phone     String?
   address   String?
   notes     String?
+  tag       String?         // Otel, Restoran, Hastane, Villa, etc.
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
   prices    CustomerPrice[]
   records   DailyRecord[]
+  payments  Payment[]
 }
 
 model Service {
@@ -56,4 +58,16 @@ model DailyRecord {
   updatedAt  DateTime @updatedAt
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   service    Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  amount      Float
+  date        String   // ISO date string like "2026-04-15"
+  method      String   @default("nakit") // nakit, havale, kredi_karti, pesin
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

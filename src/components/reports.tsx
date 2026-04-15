@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useCustomers, useReport } from '@/hooks/use-api'
+import { useState, useMemo } from 'react'
+import { useCustomers, useReport, useCustomerBalance } from '@/hooks/use-api'
 import { InvoiceDialog } from '@/components/invoice-dialog'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -36,6 +36,8 @@ import {
   Activity,
   Shirt,
   ArrowUpRight,
+  ArrowDownRight,
+  Wallet,
 } from 'lucide-react'
 import {
   AreaChart,
@@ -93,6 +95,24 @@ export function Reports() {
     endDate,
     selectedCustomer && selectedCustomer !== 'all' ? selectedCustomer : undefined
   )
+  const { data: balanceData } = useCustomerBalance(
+    selectedCustomer && selectedCustomer !== 'all' ? selectedCustomer : null
+  )
+
+  // Previous period for comparison
+  const [prevStart, prevEnd] = useMemo(() => {
+    const s = new Date(startDate)
+    const e = new Date(endDate)
+    const diff = e.getTime() - s.getTime() + 86400000
+    const pe = new Date(s.getTime() - 86400000)
+    const ps = new Date(pe.getTime() - diff + 86400000)
+    return [ps.toISOString().split('T')[0], pe.toISOString().split('T')[0]]
+  }, [startDate, endDate])
+
+  const { data: prevReport } = useReport(prevStart, prevEnd, selectedCustomer && selectedCustomer !== 'all' ? selectedCustomer : undefined)
+
+  const prevRevenue = prevReport?.summary?.totalRevenue ?? 0
+  const revenueChange = prevRevenue > 0 && report ? ((report.summary.totalRevenue - prevRevenue) / prevRevenue) * 100 : 0
 
   const setThisMonth = () => {
     const now = new Date()
@@ -176,7 +196,7 @@ export function Reports() {
     <div className="space-y-4">
       {/* Date Range Selector */}
       <Card className="overflow-hidden">
-        <CardHeader className="pb-3 bg-gradient-to-r from-primary/5 to-transparent">
+        <CardHeader className="pb-3 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <CalendarDays className="w-4 h-4 text-primary" />
             Tarih Aralığı
@@ -230,7 +250,7 @@ export function Reports() {
       {isLoading ? (
         <div className="grid grid-cols-2 gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 rounded-xl" />
+            <div key={i} className="h-24 rounded-xl shimmer-gradient" />
           ))}
         </div>
       ) : report ? (
@@ -243,7 +263,15 @@ export function Reports() {
                     <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
                       <TrendingUp className="w-4 h-4" />
                     </div>
-                    <ArrowUpRight className="w-4 h-4 text-white/50" />
+                    {revenueChange !== 0 && (
+                      <Badge className={cn(
+                        "text-[10px] font-bold px-1.5 py-0",
+                        revenueChange >= 0 ? "bg-white/20 text-white" : "bg-red-500/30 text-white"
+                      )}>
+                        {revenueChange >= 0 ? <ArrowUpRight className="w-3 h-3 inline" /> : <ArrowDownRight className="w-3 h-3 inline" />}
+                        {Math.abs(revenueChange).toFixed(0)}%
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-2xl font-bold">
                     ₺{report.summary.totalRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
@@ -325,6 +353,66 @@ export function Reports() {
             endDate={endDate}
             customerId={selectedCustomer && selectedCustomer !== 'all' ? selectedCustomer : ''}
           />
+
+          {/* Customer Balance Summary */}
+          {balanceData && selectedCustomer && selectedCustomer !== 'all' && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+            >
+              <Card className="border-primary/20">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <Wallet className="w-4 h-4 text-primary" />
+                    Bakiye Özeti
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/30 text-center">
+                      <p className="text-[10px] font-medium text-rose-600 dark:text-rose-400 mb-1">Toplam Borç</p>
+                      <p className="text-base font-bold text-rose-700 dark:text-rose-300">
+                        ₺{balanceData.totalDebit.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-center">
+                      <p className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 mb-1">Toplam Ödeme</p>
+                      <p className="text-base font-bold text-emerald-700 dark:text-emerald-300">
+                        ₺{balanceData.totalCredit.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
+                      </p>
+                    </div>
+                    <div className={`p-3 rounded-lg text-center ${
+                      balanceData.balance > 0
+                        ? 'bg-amber-50 dark:bg-amber-950/30'
+                        : balanceData.balance < 0
+                          ? 'bg-emerald-50 dark:bg-emerald-950/30'
+                          : 'bg-muted'
+                    }`}>
+                      <p className={`text-[10px] font-medium mb-1 ${
+                        balanceData.balance > 0
+                          ? 'text-amber-600 dark:text-amber-400'
+                          : balanceData.balance < 0
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-muted-foreground'
+                      }`}>
+                        {balanceData.balance > 0 ? 'Borçlu' : balanceData.balance < 0 ? 'Alacaklı' : 'Bakiye'}
+                      </p>
+                      <p className={`text-base font-bold ${
+                        balanceData.balance > 0
+                          ? 'text-amber-700 dark:text-amber-300'
+                          : balanceData.balance < 0
+                            ? 'text-emerald-700 dark:text-emerald-300'
+                            : 'text-muted-foreground'
+                      }`}>
+                        ₺{Math.abs(balanceData.balance).toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
 
           {/* Revenue Area Chart */}
           {report.byDate.length > 0 && (

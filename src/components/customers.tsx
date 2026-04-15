@@ -50,6 +50,21 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
+import { cn } from '@/lib/utils'
+
+// Hash-based color generator for initials avatars
+function getAvatarColor(name: string): string {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  const colors = [
+    'bg-emerald-500', 'bg-teal-500', 'bg-amber-500', 'bg-rose-500',
+    'bg-violet-500', 'bg-cyan-500', 'bg-pink-500', 'bg-orange-500',
+    'bg-indigo-500', 'bg-lime-500',
+  ]
+  return colors[Math.abs(hash) % colors.length]
+}
 
 export function Customers() {
   const [addOpen, setAddOpen] = useState(false)
@@ -274,15 +289,22 @@ export function Customers() {
 
   return (
     <div className="space-y-4">
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Müşteri ara..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-9"
-        />
+      {/* Search with count badge */}
+      <div className="relative flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Müşteri ara..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        {customers && customers.length > 0 && (
+          <Badge variant="secondary" className="shrink-0 text-xs px-2.5 py-1">
+            {filteredCustomers?.length ?? 0} / {customers.length}
+          </Badge>
+        )}
       </div>
 
       {/* Add Customer */}
@@ -326,8 +348,16 @@ export function Customers() {
             <Skeleton key={i} className="h-24 w-full rounded-lg" />
           ))
         ) : filteredCustomers && filteredCustomers.length > 0 ? (
-          filteredCustomers.map((customer) => (
-            <Card key={customer.id} className="overflow-hidden hover:shadow-md transition-shadow">
+          filteredCustomers.map((customer) => {
+            const recordCount = customer._count?.records ?? 0
+            // Border accent: more records = more saturated color
+            const accentColor = recordCount > 15 ? 'border-l-emerald-500' : recordCount > 8 ? 'border-l-teal-500' : recordCount > 3 ? 'border-l-amber-500' : 'border-l-muted-foreground/30'
+            return (
+            <Card key={customer.id} className={cn(
+              "overflow-hidden hover:shadow-lg transition-all border-l-4",
+              accentColor
+            )}
+            >
               <CardContent className="p-4">
                 <div
                   className="flex items-start justify-between cursor-pointer"
@@ -337,8 +367,12 @@ export function Customers() {
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                        <Users className="w-4 h-4 text-primary" />
+                      {/* Initials avatar with hash-based color */}
+                      <div className={cn(
+                        "w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white text-xs font-bold",
+                        getAvatarColor(customer.name)
+                      )}>
+                        {customer.name.charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0">
                         <p className="font-medium text-sm truncate">{customer.name}</p>
@@ -361,7 +395,7 @@ export function Customers() {
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <Badge variant="secondary" className="text-[10px]">
-                      {customer._count?.records ?? 0} kayıt
+                      {recordCount} kayıt
                     </Badge>
                     {expandedCustomer === customer.id ? (
                       <ChevronUp className="w-4 h-4 text-muted-foreground" />
@@ -371,80 +405,91 @@ export function Customers() {
                   </div>
                 </div>
 
-                {/* Expanded content */}
-                {expandedCustomer === customer.id && (
-                  <div className="mt-3 pt-3 border-t space-y-2">
-                    {customer.notes && (
-                      <p className="text-xs text-muted-foreground italic">
-                        Not: {customer.notes}
-                      </p>
-                    )}
-                    <div className="flex gap-2">
-                      <Button
-                        variant="default"
-                        size="sm"
-                        className="flex-1 gap-1"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setSelectedCustomerId(customer.id)
-                        }}
-                      >
-                        <Eye className="w-3 h-3" />
-                        Detay
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 gap-1"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setSelectedCustomer(customer.id)
-                          setPricingOpen(true)
-                        }}
-                      >
-                        <DollarSign className="w-3 h-3" />
-                        Fiyatlar
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 gap-1"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setSelectedCustomer(customer.id)
-                          setEditOpen(true)
-                        }}
-                      >
-                        <Pencil className="w-3 h-3" />
-                        Düzenle
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="outline" size="sm" className="text-destructive hover:text-destructive gap-1" onClick={(e) => e.stopPropagation()}>
-                            <Trash2 className="w-3 h-3" />
+                {/* Expanded content with slide-in animation */}
+                <AnimatePresence>
+                  {expandedCustomer === customer.id && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2, ease: 'easeOut' }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-3 pt-3 border-t space-y-2">
+                        {customer.notes && (
+                          <p className="text-xs text-muted-foreground italic">
+                            Not: {customer.notes}
+                          </p>
+                        )}
+                        <div className="flex gap-2">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="flex-1 gap-1"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedCustomerId(customer.id)
+                            }}
+                          >
+                            <Eye className="w-3 h-3" />
+                            Detay
                           </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Müşteriyi Sil</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              {customer.name} müşterisini silmek istediğinizden emin misiniz? Bu müşteriye ait tüm kayıtlar da silinecektir.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>İptal</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeleteCustomer(customer.id)}>
-                              Sil
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </div>
-                )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 gap-1"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedCustomer(customer.id)
+                              setPricingOpen(true)
+                            }}
+                          >
+                            <DollarSign className="w-3 h-3" />
+                            Fiyatlar
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 gap-1"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedCustomer(customer.id)
+                              setEditOpen(true)
+                            }}
+                          >
+                            <Pencil className="w-3 h-3" />
+                            Düzenle
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive gap-1" onClick={(e) => e.stopPropagation()}>
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Müşteriyi Sil</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  {customer.name} müşterisini silmek istediğinizden emin misiniz? Bu müşteriye ait tüm kayıtlar da silinecektir.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>İptal</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeleteCustomer(customer.id)}>
+                                  Sil
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </CardContent>
             </Card>
-          ))
+            )
+          })
         ) : (
           <Card>
             <CardContent className="p-8 text-center">

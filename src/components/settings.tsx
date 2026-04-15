@@ -368,21 +368,25 @@ export function Settings() {
             <div className="flex justify-end pt-2">
               <Button onClick={saveCompanyInfo} className="gap-2">
                 {companySaved ? (
-                  <>
-                    <Check className="w-4 h-4" />
-                    Kaydedildi
-                  </>
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                  >
+                    <Check className="w-4 h-4 text-emerald-500" />
+                  </motion.div>
                 ) : (
-                  <>
-                    <Save className="w-4 h-4" />
-                    Kaydet
-                  </>
+                  <Save className="w-4 h-4" />
                 )}
+                {companySaved ? 'Kaydedildi' : 'Kaydet'}
               </Button>
             </div>
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Gradient Separator */}
+      <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
 
       {/* Data Management Section */}
       <motion.div
@@ -477,6 +481,9 @@ export function Settings() {
         </Card>
       </motion.div>
 
+      {/* Gradient Separator */}
+      <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+
       {/* App Preferences Section */}
       <motion.div
         variants={sectionVariants}
@@ -533,21 +540,25 @@ export function Settings() {
             <div className="flex justify-end pt-2">
               <Button onClick={savePreferences} variant="outline" className="gap-2">
                 {prefsSaved ? (
-                  <>
-                    <Check className="w-4 h-4" />
-                    Kaydedildi
-                  </>
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                  >
+                    <Check className="w-4 h-4 text-emerald-500" />
+                  </motion.div>
                 ) : (
-                  <>
-                    <Save className="w-4 h-4" />
-                    Kaydet
-                  </>
+                  <Save className="w-4 h-4" />
                 )}
+                {prefsSaved ? 'Kaydedildi' : 'Kaydet'}
               </Button>
             </div>
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Gradient Separator */}
+      <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
 
       {/* Danger Zone Section */}
       <motion.div
@@ -666,6 +677,11 @@ export function Settings() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Version Number */}
+      <div className="text-center py-4">
+        <p className="text-xs text-muted-foreground/50 font-medium">Çamaşırhane Yönetim Sistemi v1.0.0</p>
+      </div>
     </div>
   )
 }

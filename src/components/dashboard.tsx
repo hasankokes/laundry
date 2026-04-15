@@ -1,6 +1,6 @@
 'use client'
 
-import { useRecords, useCustomers, useServices } from '@/hooks/use-api'
+import { useRecords, useCustomers, useServices, useDashboardData } from '@/hooks/use-api'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -18,8 +18,13 @@ import {
   Activity,
   Zap,
   Target,
+  Clock,
+  Flame,
+  Trophy,
+  ArrowUp,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import {
@@ -95,6 +100,7 @@ export function Dashboard() {
   const { data: prevRecords } = useRecords({ startDate: prevStartDate, endDate: prevEndDate })
   const { data: customers } = useCustomers()
   const { data: services } = useServices()
+  const { data: dashboardData, isLoading: dashboardLoading } = useDashboardData()
 
   const prevMonth = () => {
     const d = new Date(year, month - 2, 1)
@@ -180,14 +186,36 @@ export function Dashboard() {
       ciro: revenue,
     }))
 
+  const currentTimestamp = new Date().toLocaleString('tr-TR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: 'numeric',
+    month: 'long',
+  })
+
   return (
     <div className="space-y-5">
       {/* Month Selector */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between"
+        className="flex items-center justify-between relative overflow-hidden"
       >
+        {/* Floating particles background */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          {[...Array(6)].map((_, i) => (
+            <div
+              key={i}
+              className="float-particle absolute w-1 h-1 rounded-full bg-primary/20"
+              style={{
+                left: `${15 + i * 15}%`,
+                top: `${20 + (i % 3) * 25}%`,
+                animationDelay: `${i * 0.7}s`,
+                animationDuration: `${3 + i * 0.5}s`,
+              }}
+            />
+          ))}
+        </div>
         <Button variant="ghost" size="icon" onClick={prevMonth} className="hover:bg-primary/10">
           <ChevronLeft className="w-5 h-5" />
         </Button>
@@ -208,7 +236,7 @@ export function Dashboard() {
       <div className="grid grid-cols-2 gap-3">
         <motion.div custom={0} variants={cardVariants} initial="hidden" animate="visible">
           <Card
-            className="bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 text-white hover:shadow-lg hover:shadow-emerald-500/20 transition-all cursor-pointer"
+            className="bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 text-white hover:shadow-lg hover:shadow-emerald-500/25 transition-all cursor-pointer border-glow-emerald"
             onClick={() => setActiveTab('reports')}
           >
             <CardContent className="p-4">
@@ -229,7 +257,7 @@ export function Dashboard() {
                 )}
               </div>
               {recordsLoading ? (
-                <Skeleton className="h-7 w-28 bg-white/20" />
+                <div className="h-7 w-28 rounded-md shimmer-bg" />
               ) : (
                 <p className="text-2xl font-bold">
                   ₺{totalRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
@@ -242,7 +270,7 @@ export function Dashboard() {
 
         <motion.div custom={1} variants={cardVariants} initial="hidden" animate="visible">
           <Card
-            className="bg-gradient-to-br from-amber-500 to-orange-500 border-0 text-white hover:shadow-lg hover:shadow-amber-500/20 transition-all"
+            className="bg-gradient-to-br from-amber-500 to-orange-500 border-0 text-white hover:shadow-lg hover:shadow-amber-500/20 transition-all border-glow-amber"
           >
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
@@ -255,7 +283,7 @@ export function Dashboard() {
                 </div>
               </div>
               {recordsLoading ? (
-                <Skeleton className="h-7 w-24 bg-white/20" />
+                <div className="h-7 w-24 rounded-md shimmer-bg" />
               ) : (
                 <p className="text-2xl font-bold">
                   ₺{todayRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
@@ -268,7 +296,7 @@ export function Dashboard() {
 
         <motion.div custom={2} variants={cardVariants} initial="hidden" animate="visible">
           <Card
-            className="bg-gradient-to-br from-teal-500 to-teal-600 border-0 text-white hover:shadow-lg hover:shadow-teal-500/20 transition-all cursor-pointer"
+            className="bg-gradient-to-br from-teal-500 to-teal-600 border-0 text-white hover:shadow-lg hover:shadow-teal-500/20 transition-all cursor-pointer border-glow-teal"
             onClick={() => setActiveTab('customers')}
           >
             <CardContent className="p-4">
@@ -288,7 +316,7 @@ export function Dashboard() {
                 )}
               </div>
               {recordsLoading ? (
-                <Skeleton className="h-7 w-16 bg-white/20" />
+                <div className="h-7 w-16 rounded-md shimmer-bg" />
               ) : (
                 <p className="text-2xl font-bold">{uniqueCustomers}</p>
               )}
@@ -299,7 +327,7 @@ export function Dashboard() {
 
         <motion.div custom={3} variants={cardVariants} initial="hidden" animate="visible">
           <Card
-            className="bg-gradient-to-br from-rose-400 to-pink-500 border-0 text-white hover:shadow-lg hover:shadow-rose-500/20 transition-all"
+            className="bg-gradient-to-br from-rose-400 to-pink-500 border-0 text-white hover:shadow-lg hover:shadow-rose-500/20 transition-all border-glow-rose"
           >
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
@@ -318,7 +346,7 @@ export function Dashboard() {
                 )}
               </div>
               {recordsLoading ? (
-                <Skeleton className="h-7 w-16 bg-white/20" />
+                <div className="h-7 w-16 rounded-md shimmer-bg" />
               ) : (
                 <p className="text-2xl font-bold">{totalQuantity.toLocaleString('tr-TR')}</p>
               )}
@@ -328,15 +356,189 @@ export function Dashboard() {
         </motion.div>
       </div>
 
+      {/* A. Weekly Comparison Card */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2, duration: 0.4 }}
+      >
+        <Card className="overflow-hidden">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-primary" />
+              Haftalık Karşılaştırma
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {dashboardLoading ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="h-20 rounded-lg shimmer-gradient" />
+                <div className="h-20 rounded-lg shimmer-gradient" />
+              </div>
+            ) : dashboardData ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 p-3 text-white">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-white/70">Bu Hafta</p>
+                  <p className="text-xl font-bold mt-1">
+                    ₺{dashboardData.weeklyComparison.thisWeek.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-gradient-to-br from-rose-400 to-pink-500 p-3 text-white">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-white/70">Geçen Hafta</p>
+                  <p className="text-xl font-bold mt-1">
+                    ₺{dashboardData.weeklyComparison.lastWeek.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+            {dashboardData && dashboardData.weeklyComparison.lastWeek > 0 && (
+              <div className={cn(
+                "flex items-center gap-1.5 mt-3 justify-center",
+                dashboardData.weeklyComparison.change >= 0 ? "text-emerald-600" : "text-rose-500"
+              )}>
+                {dashboardData.weeklyComparison.change >= 0 ? (
+                  <ArrowUpRight className="w-4 h-4" />
+                ) : (
+                  <ArrowDownRight className="w-4 h-4" />
+                )}
+                <span className="text-sm font-bold">
+                  %{Math.abs(dashboardData.weeklyComparison.change).toFixed(1)}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {dashboardData.weeklyComparison.change >= 0 ? 'artış' : 'azalış'}
+                </span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* B. Streak & Best Day Row */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.25, duration: 0.4 }}
+      >
+        <div className="grid grid-cols-2 gap-3">
+          <Card className="overflow-hidden">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                  <Flame className="w-4 h-4 text-orange-500" />
+                </div>
+                <span className="text-[11px] font-medium text-muted-foreground">Seri</span>
+              </div>
+              {dashboardLoading ? (
+                <div className="h-7 w-20 rounded-md shimmer-bg" />
+              ) : (
+                <div className="flex items-baseline gap-1.5">
+                  <p className="text-2xl font-bold text-orange-600">{dashboardData?.currentStreak ?? 0}</p>
+                  <span className="text-xs text-muted-foreground">gün üst üste</span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <Card className="overflow-hidden">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                  <Trophy className="w-4 h-4 text-amber-500" />
+                </div>
+                <span className="text-[11px] font-medium text-muted-foreground">En İyi Gün</span>
+              </div>
+              {dashboardLoading ? (
+                <div className="h-7 w-24 rounded-md shimmer-bg" />
+              ) : dashboardData?.bestDay ? (
+                <div>
+                  <p className="text-lg font-bold text-amber-600">
+                    ₺{dashboardData.bestDay.amount.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {new Date(dashboardData.bestDay.date + 'T00:00:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">—</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </motion.div>
+
+      {/* C. Monthly Target Progress */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.4 }}
+      >
+        <Card className="overflow-hidden">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Target className="w-4 h-4 text-primary" />
+              Aylık Hedef
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {dashboardLoading ? (
+              <div className="space-y-2">
+                <div className="h-4 w-full rounded-full shimmer-gradient" />
+                <div className="h-4 w-20 rounded-md shimmer-bg" />
+              </div>
+            ) : dashboardData ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">
+                    ₺{dashboardData.monthlyTarget.current.toLocaleString('tr-TR', { minimumFractionDigits: 0 })} / ₺{dashboardData.monthlyTarget.target.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
+                  </span>
+                  <span className={cn(
+                    "font-bold",
+                    dashboardData.monthlyTarget.percentage >= 70 ? "text-emerald-600" : "text-amber-500"
+                  )}>
+                    %{Math.min(dashboardData.monthlyTarget.percentage, 100).toFixed(0)}
+                  </span>
+                </div>
+                <div className="h-3 bg-muted rounded-full overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(dashboardData.monthlyTarget.percentage, 100)}%` }}
+                    transition={{ delay: 0.5, duration: 0.8, ease: 'easeOut' }}
+                    className={cn(
+                      "h-full rounded-full",
+                      dashboardData.monthlyTarget.percentage >= 70
+                        ? "bg-gradient-to-r from-emerald-400 to-emerald-600"
+                        : "bg-gradient-to-r from-amber-400 to-amber-500"
+                    )}
+                  />
+                </div>
+                <p className={cn(
+                  "text-[10px]",
+                  dashboardData.monthlyTarget.percentage >= 70 ? "text-emerald-600" : "text-amber-500"
+                )}>
+                  {dashboardData.monthlyTarget.percentage >= 70
+                    ? '✅ Hedefin üzerinde'
+                    : '⚠️ Hedefin altında'}
+                </p>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      </motion.div>
+
       {/* Quick Action + Average */}
       <div className="grid grid-cols-5 gap-3">
-        <Button
-          className="col-span-3 h-12 text-base gap-2 shadow-md hover:shadow-lg transition-shadow"
-          onClick={() => setActiveTab('daily-entry')}
-        >
-          <PlusCircle className="w-5 h-5" />
-          Günlük Kayıt Ekle
-        </Button>
+        <div className="col-span-3 space-y-1">
+          <Button
+            className="w-full h-12 text-base gap-2 shadow-md hover:shadow-lg transition-shadow"
+            onClick={() => setActiveTab('daily-entry')}
+          >
+            <PlusCircle className="w-5 h-5" />
+            Günlük Kayıt Ekle
+          </Button>
+          <p className="text-[10px] text-muted-foreground text-center flex items-center justify-center gap-1">
+            <Clock className="w-3 h-3" />
+            Son güncelleme: {currentTimestamp}
+          </p>
+        </div>
         <Card className="col-span-2 bg-primary/5 border-primary/20">
           <CardContent className="p-3 text-center">
             <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
@@ -363,7 +565,7 @@ export function Dashboard() {
         </CardHeader>
         <CardContent className="pt-0">
           {recordsLoading ? (
-            <Skeleton className="h-48 w-full" />
+            <div className="h-48 w-full rounded-lg shimmer-gradient" />
           ) : dailyChartData.length > 0 ? (
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
@@ -414,38 +616,56 @@ export function Dashboard() {
         </CardHeader>
         <CardContent className="pt-0">
           {recordsLoading ? (
-            <Skeleton className="h-52 w-full" />
+            <div className="h-52 w-full rounded-lg shimmer-gradient" />
           ) : serviceDistribution.length > 0 ? (
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={serviceDistribution}
-                    dataKey="revenue"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={70}
-                    innerRadius={35}
-                    paddingAngle={3}
-                    label={renderPieLabel}
-                    labelLine={{ strokeWidth: 1, stroke: 'var(--color-muted-foreground)' }}
-                  >
-                    {serviceDistribution.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: number) => `₺${value.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`}
-                    contentStyle={{
-                      backgroundColor: 'var(--color-card)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: '8px',
-                      fontSize: '12px',
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+            <div>
+              <div className="h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={serviceDistribution}
+                      dataKey="revenue"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={70}
+                      innerRadius={35}
+                      paddingAngle={3}
+                      label={renderPieLabel}
+                      labelLine={{ strokeWidth: 1, stroke: 'var(--color-muted-foreground)' }}
+                    >
+                      {serviceDistribution.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: number) => `₺${value.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`}
+                      contentStyle={{
+                        backgroundColor: 'var(--color-card)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              {/* Legend items below chart with colored dots and percentage */}
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5 justify-center px-4 pb-2">
+                {serviceDistribution.map((item, index) => {
+                  const pct = totalRevenue > 0 ? ((item.revenue / totalRevenue) * 100).toFixed(0) : '0'
+                  return (
+                    <div key={item.name} className="flex items-center gap-1.5">
+                      <div
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
+                      />
+                      <span className="text-xs text-muted-foreground truncate max-w-[80px]">{item.name}</span>
+                      <span className="text-xs font-semibold">%{pct}</span>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">
@@ -582,6 +802,113 @@ export function Dashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* D. Revenue by Day of Week */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.35, duration: 0.4 }}
+      >
+        <Card className="overflow-hidden">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Activity className="w-4 h-4 text-primary" />
+              Haftanın Günlerine Göre Ortalama
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {dashboardLoading ? (
+              <div className="h-48 w-full rounded-lg shimmer-gradient" />
+            ) : dashboardData && dashboardData.revenueByDayOfWeek.length > 0 ? (
+              <div className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dashboardData.revenueByDayOfWeek} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                    <defs>
+                      <linearGradient id="dayBarGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.9} />
+                        <stop offset="95%" stopColor="#0d9488" stopOpacity={0.7} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" opacity={0.5} />
+                    <XAxis
+                      dataKey="day"
+                      tick={{ fontSize: 11, fill: 'var(--color-muted-foreground)' }}
+                      axisLine={{ stroke: 'var(--color-border)' }}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10, fill: 'var(--color-muted-foreground)' }}
+                      axisLine={{ stroke: 'var(--color-border)' }}
+                      tickFormatter={(val: number) => `₺${(val / 1000).toFixed(0)}k`}
+                    />
+                    <Tooltip
+                      formatter={(value: number) => [`₺${value.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`, 'Ortalama Ciro']}
+                      contentStyle={{
+                        backgroundColor: 'var(--color-card)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                      }}
+                    />
+                    <Bar dataKey="average" fill="url(#dayBarGrad)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                Henüz kayıt yok
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* E. Top Growth Customer */}
+      {dashboardData?.topGrowthCustomer && (
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.4 }}
+        >
+          <Card className="overflow-hidden border-emerald-200 dark:border-emerald-900">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <ArrowUp className="w-4 h-4 text-emerald-500" />
+                En Hızlı Büyüyen Müşteri
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-base font-bold">{dashboardData.topGrowthCustomer.name}</p>
+                  <div className="flex items-center gap-3 mt-1.5">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Bu Ay</p>
+                      <p className="text-sm font-semibold text-emerald-600">
+                        ₺{dashboardData.topGrowthCustomer.thisMonth.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
+                      </p>
+                    </div>
+                    <div className="text-muted-foreground/40">→</div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground">Geçen Ay</p>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        ₺{dashboardData.topGrowthCustomer.lastMonth.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-col items-center">
+                  <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                    <ArrowUp className="w-6 h-6 text-emerald-600" />
+                  </div>
+                  <Badge className="mt-1.5 bg-emerald-500/10 text-emerald-600 border-emerald-200 text-xs font-bold">
+                    +{dashboardData.topGrowthCustomer.change.toFixed(0)}%
+                  </Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       {/* Quick Stats Row */}
       <div className="grid grid-cols-2 gap-3">
