@@ -1,6 +1,6 @@
 'use client'
 
-import { useRecords, useCustomers, useServices, useDashboardData } from '@/hooks/use-api'
+import { useRecords, useCustomers, useServices, useDashboardData, useBalanceOverview } from '@/hooks/use-api'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -22,6 +22,7 @@ import {
   Flame,
   Trophy,
   ArrowUp,
+  Wallet,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -81,6 +82,94 @@ function CustomBarTooltip({ active, payload, label }: any) {
 function renderPieLabel({ name, percent }: any) {
   if (percent < 0.05) return ''
   return `${name} %${(percent * 100).toFixed(0)}`
+}
+
+// Balance Overview sub-component
+function BalanceOverview() {
+  const { data: balanceData, isLoading } = useBalanceOverview()
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="h-12 rounded-lg shimmer-gradient" />
+        ))}
+      </div>
+    )
+  }
+
+  if (!balanceData || balanceData.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground text-center py-4">
+        Henüz bakiye bilgisi yok
+      </p>
+    )
+  }
+
+  const totalDebt = balanceData.reduce((sum, b) => sum + (b.balance > 0 ? b.balance : 0), 0)
+  const totalCredit = balanceData.reduce((sum, b) => sum + (b.balance < 0 ? Math.abs(b.balance) : 0), 0)
+
+  return (
+    <div className="space-y-3">
+      {/* Summary row */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-xl bg-gradient-to-br from-rose-500/10 to-rose-500/5 p-3 border border-rose-200/50 dark:border-rose-900/50">
+          <p className="text-[10px] font-medium text-rose-600 dark:text-rose-400 uppercase tracking-wider">Toplam Alacak</p>
+          <p className="text-lg font-bold text-rose-600 dark:text-rose-400">
+            ₺{totalDebt.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
+          </p>
+        </div>
+        <div className="rounded-xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 p-3 border border-emerald-200/50 dark:border-emerald-900/50">
+          <p className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Toplam Fazla Ödeme</p>
+          <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+            ₺{totalCredit.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
+          </p>
+        </div>
+      </div>
+
+      {/* Customer balances list */}
+      <div className="space-y-1.5 max-h-48 overflow-y-auto">
+        {balanceData.map((item, idx) => (
+          <motion.div
+            key={item.customerId}
+            initial={{ opacity: 0, x: -8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: idx * 0.03 }}
+            className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <div className={cn(
+                "w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0",
+                item.balance > 0 ? "bg-rose-500" : item.balance < 0 ? "bg-emerald-500" : "bg-gray-400"
+              )}>
+                {item.customerName.charAt(0)}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{item.customerName}</p>
+                {item.tag && (
+                  <p className="text-[10px] text-muted-foreground">{item.tag}</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className={cn(
+                "text-sm font-semibold",
+                item.balance > 0 ? "text-rose-600" : item.balance < 0 ? "text-emerald-600" : "text-muted-foreground"
+              )}>
+                {item.balance > 0 ? '+' : ''}₺{Math.abs(item.balance).toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
+              </span>
+              <Badge variant="outline" className={cn(
+                "text-[9px] h-5",
+                item.balance > 0 ? "border-rose-300 text-rose-600" : item.balance < 0 ? "border-emerald-300 text-emerald-600" : ""
+              )}>
+                {item.balance > 0 ? 'Borçlu' : item.balance < 0 ? 'Alacaklı' : 'Borç Yok'}
+              </Badge>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export function Dashboard() {
@@ -931,6 +1020,25 @@ export function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Balance Overview */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.45, duration: 0.4 }}
+      >
+        <Card className="overflow-hidden">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-primary" />
+              Müşteri Bakiye Özeti
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <BalanceOverview />
+          </CardContent>
+        </Card>
+      </motion.div>
     </div>
   )
 }

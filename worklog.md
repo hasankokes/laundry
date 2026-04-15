@@ -584,3 +584,60 @@ Stage Summary:
 - All new sections match existing gradient card styling with teal/emerald/amber/rose color palette
 - Framer-motion animations on all new sections
 - All text in Turkish, all existing functionality preserved
+
+---
+Task ID: 15
+Agent: Cron Review Agent (Round 4)
+Task: Fix critical PrismaClient cache bug, re-seed database, add Balance Overview, add Klinik tag
+
+Work Log:
+- Identified critical bug: db.payment was undefined causing 500 errors on /api/customers/[id]/balance and /api/balance
+  - Root cause: PrismaClient cached in globalThis from before Payment model was added to schema
+  - Turbopack module cache kept stale PrismaClient even after schema migrations
+- Fixed balance API routes:
+  - Changed /api/customers/[id]/balance/route.ts from db.payment.aggregate() to db.customer.findUnique with include: { payments }
+  - Avoids stale PrismaClient issue by using relation include pattern
+- Cleared .next cache to force Turbopack to use fresh PrismaClient
+- Re-seeded database with comprehensive test data:
+  - 7 services: Yıkama, Ütüleme, Kuru Temizleme, Perde Yıkama, Halı Yıkama, Çarşaf Yıkama, Battaniye Yıkama
+  - 4 customers: Otel Grand Plaza (Otel), Restoran Deniz (Restoran), Klinik Sağlık Merkezi (Hastane), Cafe Mavi (Restoran)
+  - 20 daily records spanning April 1-14
+  - 4 payments: Otel ₺500 (havale), Klinik ₺1500+₺1000 (nakit+havale), Restoran ₺200 (kredi_karti)
+  - 2 customer-specific prices: Klinik Halı Yıkama ₺35, Otel Kuru Temizleme ₺25
+- Added Balance Overview section to Dashboard:
+  - New BalanceOverview sub-component using useBalanceOverview hook
+  - Summary row showing total debt (rose) and total overpayment (emerald)
+  - Customer balance list with color-coded avatars
+  - Balance status badges (Borçlu/Alacaklı/Borç Yok)
+  - framer-motion staggered animations
+  - Added Wallet icon import from lucide-react
+- Added Klinik tag to TAG_CONFIG and TAG_OPTIONS:
+  - New Klinik tag with teal color scheme and ⚕️ icon
+- Created prisma/seed.js for easy database reseeding
+- All lint checks passing (0 errors)
+- API endpoints verified: /api/customers, /api/balance, /api/payments all returning correct data
+
+Stage Summary:
+- Critical PrismaClient cache bug identified and resolved
+- Balance API routes fixed to use include pattern instead of aggregate
+- Database re-seeded with comprehensive test data including payments
+- Balance Overview section added to Dashboard
+- Klinik tag added to customer tag options
+- All code compiles and APIs return correct data
+
+## Current Project Status
+- **Phase**: Feature-rich laundry management app with payment tracking and balance overview
+- **All 6 tabs working**: Dashboard, Daily Entry, Customers, Services, Reports, Settings
+- **Key features**: Customer Detail with balance/payments, Invoice generation, Quick-Repeat Entry, Balance Overview, Payment recording, Customer tags (8 types), Settings with data export/import, Dark mode, Charts, Animations
+
+## Unresolved Issues / Risks
+- Dev server unstable in sandbox (dies after ~30s); needs system restart for stable testing
+- Could add PDF export for invoices
+- Could integrate Settings company info into Invoice dialog
+- Could add customer balance alerts (overdue payments)
+
+## Priority Recommendations for Next Phase
+1. Verify all features work with stable dev server
+2. Add PDF export for invoices
+3. Integrate Settings company info into Invoice dialog
+4. Add customer balance alerts

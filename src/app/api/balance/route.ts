@@ -36,6 +36,7 @@ export async function GET() {
 
     return NextResponse.json(balances)
   } catch (error) {
+    console.error('Error fetching balances:', error)
     return NextResponse.json(
       { error: 'Bakiye bilgileri yüklenemedi' },
       { status: 500 }

@@ -66,12 +66,13 @@ const TAG_CONFIG: Record<string, { label: string; color: string; bg: string; ico
   Restoran: { label: 'Restoran', color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-950', icon: '🍽️' },
   Hastane: { label: 'Hastane', color: 'text-rose-700 dark:text-rose-300', bg: 'bg-rose-100 dark:bg-rose-950', icon: '🏥' },
   Villa: { label: 'Villa', color: 'text-violet-700 dark:text-violet-300', bg: 'bg-violet-100 dark:bg-violet-950', icon: '🏡' },
+  Klinik: { label: 'Klinik', color: 'text-teal-700 dark:text-teal-300', bg: 'bg-teal-100 dark:bg-teal-950', icon: '⚕️' },
   'Spor Kulübü': { label: 'Spor Kulübü', color: 'text-sky-700 dark:text-sky-300', bg: 'bg-sky-100 dark:bg-sky-950', icon: '⚽' },
   Yurt: { label: 'Yurt', color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-950', icon: '🏢' },
   Diğer: { label: 'Diğer', color: 'text-gray-700 dark:text-gray-300', bg: 'bg-gray-100 dark:bg-gray-950', icon: '📌' },
 }
 
-const TAG_OPTIONS = ['Otel', 'Restoran', 'Hastane', 'Villa', 'Spor Kulübü', 'Yurt', 'Diğer']
+const TAG_OPTIONS = ['Otel', 'Restoran', 'Hastane', 'Klinik', 'Villa', 'Spor Kulübü', 'Yurt', 'Diğer']
 
 // Hash-based color generator for initials avatars
 function getAvatarColor(name: string): string {

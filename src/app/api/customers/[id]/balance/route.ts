@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
-
-// Use a fresh PrismaClient to avoid stale globalThis cache in dev mode
-const prisma = new PrismaClient({ log: ['query'] })
+import { db } from '@/lib/db'
 
 // GET /api/customers/[id]/balance - Calculate customer balance
 export async function GET(
@@ -12,7 +9,13 @@ export async function GET(
   try {
     const { id } = await params
 
-    const customer = await prisma.customer.findUnique({ where: { id } })
+    const customer = await db.customer.findUnique({
+      where: { id },
+      include: {
+        records: { select: { total: true } },
+        payments: { select: { amount: true, date: true, method: true, description: true, id: true, customerId: true, createdAt: true, updatedAt: true } },
+      },
+    })
     if (!customer) {
       return NextResponse.json(
         { error: 'Müşteri bulunamadı' },
@@ -21,28 +24,18 @@ export async function GET(
     }
 
     // Total debit (from DailyRecord totals)
-    const debitResult = await prisma.dailyRecord.aggregate({
-      where: { customerId: id },
-      _sum: { total: true },
-    })
-    const totalDebit = debitResult._sum.total ?? 0
+    const totalDebit = customer.records.reduce((sum, r) => sum + r.total, 0)
 
     // Total credit (from Payment totals)
-    const creditResult = await prisma.payment.aggregate({
-      where: { customerId: id },
-      _sum: { amount: true },
-    })
-    const totalCredit = creditResult._sum.amount ?? 0
+    const totalCredit = customer.payments.reduce((sum, p) => sum + p.amount, 0)
 
     // Balance = debit - credit (positive means customer owes money)
     const balance = totalDebit - totalCredit
 
     // Recent payments (last 10)
-    const recentPayments = await prisma.payment.findMany({
-      where: { customerId: id },
-      orderBy: { date: 'desc' },
-      take: 10,
-    })
+    const recentPayments = customer.payments
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 10)
 
     return NextResponse.json({
       totalDebit,
