@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="240" fill="#0d9488"/>
+  
+  <!-- Shirt/hanger icon - simplified laundry symbol -->
+  <!-- Hanger hook -->
+  <path d="M256 80 L256 130" stroke="white" stroke-width="18" stroke-linecap="round" fill="none"/>
+  <circle cx="256" cy="70" r="14" fill="none" stroke="white" stroke-width="12"/>
+  
+  <!-- Hanger triangle -->
+  <path d="M256 130 L140 210 L372 210 Z" fill="none" stroke="white" stroke-width="16" stroke-linejoin="round"/>
+  
+  <!-- Shirt body -->
+  <path d="M176 210 L176 380 Q176 420 216 420 L296 420 Q336 420 336 380 L336 210" 
+        fill="none" stroke="white" stroke-width="16" stroke-linejoin="round" stroke-linecap="round"/>
+  
+  <!-- Shirt collar -->
+  <path d="M216 210 L240 250 L256 230 L272 250 L296 210" 
+        fill="none" stroke="white" stroke-width="14" stroke-linejoin="round" stroke-linecap="round"/>
+  
+  <!-- Steam/droplet details -->
+  <path d="M180 440 Q190 430 200 440 Q210 450 220 440" 
+        fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="8" stroke-linecap="round"/>
+  <path d="M240 450 Q250 440 260 450 Q270 460 280 450" 
+        fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="8" stroke-linecap="round"/>
+  <path d="M300 440 Q310 430 320 440 Q330 450 340 440" 
+        fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="8" stroke-linecap="round"/>
+</svg>

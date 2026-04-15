@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useInvoice, InvoiceData } from '@/hooks/use-api'
 import {
   Dialog,
@@ -23,6 +23,9 @@ import {
   Building2,
   Landmark,
   CreditCard,
+  MessageCircle,
+  Eye,
+  Table,
 } from 'lucide-react'
 
 interface CompanyInfo {
@@ -60,7 +63,10 @@ function formatDate(dateStr: string): string {
   return `${day}.${month}.${year}`
 }
 
-function InvoiceContent({
+/**
+ * Clean, print-optimized invoice preview
+ */
+function InvoicePreviewContent({
   invoice,
   companyInfo,
   preferences,
@@ -69,11 +75,151 @@ function InvoiceContent({
   companyInfo: CompanyInfo
   preferences: AppPreferences
 }) {
-  // Use preferences kdvRate for display (API may use a different rate)
   const displayKdvRate = preferences.kdvRate
   const cs = preferences.currencySymbol
+  const kdvAmount = invoice.subtotal * (displayKdvRate / 100)
+  const grandTotal = invoice.subtotal + kdvAmount
 
-  // Recalculate KDV based on preferences in case they differ from API
+  return (
+    <div className="invoice-print bg-white text-gray-900 p-6 sm:p-8 font-sans">
+      {/* Company Header - clean minimal */}
+      <div className="border-b-2 border-gray-800 pb-4 mb-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{companyInfo.name}</h1>
+            <p className="text-xs font-medium uppercase tracking-wider text-gray-500 mt-0.5">
+              Yönetim Sistemi
+            </p>
+          </div>
+          <div className="text-right text-xs text-gray-600 space-y-0.5">
+            {companyInfo.address && <p>{companyInfo.address}</p>}
+            {companyInfo.phone && <p>{companyInfo.phone}</p>}
+            {companyInfo.taxNumber && (
+              <p className="font-medium">Vergi No: {companyInfo.taxNumber}</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Invoice Title & Dates - clean */}
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 uppercase tracking-wide">FATURA</h2>
+          <p className="text-sm text-gray-600 font-mono mt-0.5">{invoice.invoiceNumber}</p>
+        </div>
+        <div className="text-xs text-gray-600 space-y-1 text-right">
+          <p>Fatura Tarihi: <strong>{formatDate(invoice.createdAt.split('T')[0])}</strong></p>
+          <p>Vade Tarihi: <strong>{formatDate(invoice.dueDate)}</strong></p>
+          <p>Dönem: <strong>{formatDate(invoice.startDate)} — {formatDate(invoice.endDate)}</strong></p>
+        </div>
+      </div>
+
+      {/* Customer Info - clean box */}
+      <div className="border border-gray-300 rounded p-3 mb-6">
+        <h3 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Müşteri Bilgileri</h3>
+        <p className="text-sm font-bold text-gray-900">{invoice.customer.name}</p>
+        {invoice.customer.address && (
+          <p className="text-xs text-gray-600">{invoice.customer.address}</p>
+        )}
+        {invoice.customer.phone && (
+          <p className="text-xs text-gray-600">{invoice.customer.phone}</p>
+        )}
+      </div>
+
+      {/* Service Table - clean borders */}
+      <div className="mb-6">
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr className="border-b-2 border-gray-800">
+              <th className="py-2 px-2 text-left font-semibold w-8">#</th>
+              <th className="py-2 px-2 text-left font-semibold">Hizmet</th>
+              <th className="py-2 px-2 text-center font-semibold w-14">Birim</th>
+              <th className="py-2 px-2 text-center font-semibold w-14">Miktar</th>
+              <th className="py-2 px-2 text-right font-semibold w-24">Birim Fiyat</th>
+              <th className="py-2 px-2 text-right font-semibold w-24">Toplam</th>
+            </tr>
+          </thead>
+          <tbody>
+            {invoice.lineItems.map((item, idx) => (
+              <tr key={item.serviceId} className="border-b border-gray-200">
+                <td className="py-2 px-2 text-gray-500">{idx + 1}</td>
+                <td className="py-2 px-2 font-medium text-gray-800">{item.serviceName}</td>
+                <td className="py-2 px-2 text-center text-gray-500">{item.unit}</td>
+                <td className="py-2 px-2 text-center text-gray-700">{item.quantity}</td>
+                <td className="py-2 px-2 text-right text-gray-600">{formatCurrency(item.unitPrice, cs)}</td>
+                <td className="py-2 px-2 text-right font-semibold text-gray-800">{formatCurrency(item.total, cs)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Totals - clean right-aligned */}
+      <div className="flex justify-end mb-8">
+        <div className="w-64">
+          <div className="flex justify-between py-1 text-xs text-gray-600">
+            <span>Ara Toplam</span>
+            <span className="font-medium">{formatCurrency(invoice.subtotal, cs)}</span>
+          </div>
+          <div className="border-t border-gray-300 my-1" />
+          <div className="flex justify-between py-1 text-xs text-gray-600">
+            <span>KDV (%{displayKdvRate})</span>
+            <span className="font-medium">{formatCurrency(kdvAmount, cs)}</span>
+          </div>
+          <div className="border-t-2 border-gray-800 my-1" />
+          <div className="flex justify-between py-1.5 text-sm font-bold text-gray-900">
+            <span>Genel Toplam</span>
+            <span>{formatCurrency(grandTotal, cs)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Payment Info - minimal */}
+      <div className="border border-gray-200 rounded p-3 mb-4">
+        <h3 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Ödeme Bilgileri</h3>
+        <div className="grid grid-cols-2 gap-3 text-[11px] text-gray-600">
+          <div>
+            <span className="font-medium text-gray-700">Banka: </span>—
+          </div>
+          <div>
+            <span className="font-medium text-gray-700">Hesap Adı: </span>{companyInfo.name}
+          </div>
+          <div>
+            <span className="font-medium text-gray-700">IBAN: </span>—
+          </div>
+          <div>
+            <span className="font-medium text-gray-700">Şube: </span>—
+          </div>
+        </div>
+      </div>
+
+      {/* Footer - minimal */}
+      <div className="border-t border-gray-200 pt-3 text-[10px] text-gray-400 space-y-0.5">
+        <p>Bu fatura {invoice.recordCount} adet kayıt esas alınarak oluşturulmuştur.</p>
+        <p>Ödeme vade tarihine kadar yapılmalıdır. Gecikme durumunda yasal faiz uygulanır.</p>
+        {companyInfo.taxNumber && (
+          <p>Vergi No: {companyInfo.taxNumber}</p>
+        )}
+        <p className="mt-1 text-gray-300">Bu fatura bilgilendirme amaçlıdır. Resmi belge yerine geçmez.</p>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Rich, detailed invoice view with visual elements
+ */
+function InvoiceDataContent({
+  invoice,
+  companyInfo,
+  preferences,
+}: {
+  invoice: InvoiceData
+  companyInfo: CompanyInfo
+  preferences: AppPreferences
+}) {
+  const displayKdvRate = preferences.kdvRate
+  const cs = preferences.currencySymbol
   const kdvAmount = invoice.subtotal * (displayKdvRate / 100)
   const grandTotal = invoice.subtotal + kdvAmount
 
@@ -284,6 +430,52 @@ function loadFromLocalStorage<T>(key: string, defaults: T): T {
   return defaults
 }
 
+/**
+ * Build a WhatsApp summary text for the invoice
+ */
+function buildWhatsAppMessage(
+  invoice: InvoiceData,
+  companyInfo: CompanyInfo,
+  preferences: AppPreferences
+): string {
+  const cs = preferences.currencySymbol
+  const displayKdvRate = preferences.kdvRate
+  const kdvAmount = invoice.subtotal * (displayKdvRate / 100)
+  const grandTotal = invoice.subtotal + kdvAmount
+
+  const lines: string[] = []
+
+  lines.push(`📋 *FATURA*`)
+  lines.push(`📌 ${invoice.invoiceNumber}`)
+  lines.push(`🏢 ${companyInfo.name}`)
+  lines.push('')
+
+  lines.push(`👤 *Müşteri:* ${invoice.customer.name}`)
+  if (invoice.customer.phone) lines.push(`📞 ${invoice.customer.phone}`)
+  lines.push('')
+
+  lines.push(`📅 Dönem: ${formatDate(invoice.startDate)} — ${formatDate(invoice.endDate)}`)
+  lines.push(`📅 Vade: ${formatDate(invoice.dueDate)}`)
+  lines.push('')
+
+  lines.push(`📦 *Hizmetler:*`)
+  for (const item of invoice.lineItems) {
+    lines.push(`  • ${item.serviceName}: ${item.quantity} ${item.unit} × ${formatCurrency(item.unitPrice, cs)} = ${formatCurrency(item.total, cs)}`)
+  }
+  lines.push('')
+
+  lines.push(`💰 Ara Toplam: ${formatCurrency(invoice.subtotal, cs)}`)
+  lines.push(`📊 KDV (%${displayKdvRate}): ${formatCurrency(kdvAmount, cs)}`)
+  lines.push(`✅ *Genel Toplam: ${formatCurrency(grandTotal, cs)}*`)
+
+  if (companyInfo.taxNumber) {
+    lines.push('')
+    lines.push(`🏦 Vergi No: ${companyInfo.taxNumber}`)
+  }
+
+  return lines.join('\n')
+}
+
 export function InvoiceDialog({
   open,
   onOpenChange,
@@ -291,6 +483,8 @@ export function InvoiceDialog({
   endDate,
   customerId,
 }: InvoiceDialogProps) {
+  const [viewMode, setViewMode] = useState<'preview' | 'data'>('preview')
+
   // Read from localStorage; re-read when dialog opens (open changes to true)
   const companyInfo = useMemo<CompanyInfo>(() => {
     if (!open) return defaultCompanyInfo
@@ -314,19 +508,57 @@ export function InvoiceDialog({
     window.print()
   }
 
+  const handleWhatsApp = () => {
+    if (!invoice) return
+    const message = buildWhatsAppMessage(invoice, companyInfo, preferences)
+    const encoded = encodeURIComponent(message)
+    window.open(`https://wa.me/?text=${encoded}`, '_blank')
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto p-0 gap-0">
         <DialogHeader className="p-6 pb-0">
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-primary" />
-            Fatura Önizleme
-          </DialogTitle>
-          <DialogDescription>
-            {startDate && endDate && (
-              <span>{formatDate(startDate)} — {formatDate(endDate)} arası fatura</span>
-            )}
-          </DialogDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-primary" />
+                Fatura
+              </DialogTitle>
+              <DialogDescription className="mt-1">
+                {startDate && endDate && (
+                  <span>{formatDate(startDate)} — {formatDate(endDate)} arası fatura</span>
+                )}
+              </DialogDescription>
+            </div>
+            {/* View Mode Toggle */}
+            <div className="flex items-center bg-muted rounded-lg p-0.5 gap-0.5">
+              <button
+                type="button"
+                onClick={() => setViewMode('preview')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  viewMode === 'preview'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                Önizleme
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('data')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  viewMode === 'data'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Table className="w-3.5 h-3.5" />
+                Ayrıntılı
+              </button>
+            </div>
+          </div>
         </DialogHeader>
 
         <div className="px-6 pb-2">
@@ -352,19 +584,37 @@ export function InvoiceDialog({
               </p>
             </div>
           ) : invoice ? (
-            <InvoiceContent
-              invoice={invoice}
-              companyInfo={companyInfo}
-              preferences={preferences}
-            />
+            viewMode === 'preview' ? (
+              <InvoicePreviewContent
+                invoice={invoice}
+                companyInfo={companyInfo}
+                preferences={preferences}
+              />
+            ) : (
+              <InvoiceDataContent
+                invoice={invoice}
+                companyInfo={companyInfo}
+                preferences={preferences}
+              />
+            )
           ) : null}
         </div>
 
-        {/* Print Button - hidden during print */}
+        {/* Action Buttons - hidden during print */}
         <div className="p-4 border-t print-actions flex justify-end gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} className="print:hidden">
             Kapat
           </Button>
+          {invoice && (
+            <Button
+              variant="outline"
+              onClick={handleWhatsApp}
+              className="gap-2 print:hidden text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200"
+            >
+              <MessageCircle className="w-4 h-4" />
+              WhatsApp ile Gönder
+            </Button>
+          )}
           <Button
             onClick={handlePrint}
             disabled={!invoice}

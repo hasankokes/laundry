@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+import { SWProvider } from "@/components/providers/sw-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,6 +19,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Çamaşırhane Yönetimi",
   description: "Çamaşırhane işletme yönetim uygulaması - Müşteri, hizmet ve günlük kayıt takibi",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Çamaşırhane",
+  },
 };
 
 export const viewport: Viewport = {
@@ -44,9 +51,11 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          <QueryProvider>
-            {children}
-          </QueryProvider>
+          <SWProvider>
+            <QueryProvider>
+              {children}
+            </QueryProvider>
+          </SWProvider>
           <Toaster position="top-center" />
         </ThemeProvider>
       </body>

@@ -234,6 +234,71 @@
   animation: border-glow 1.5s ease-in-out;
 }
 
+/* Button press micro-interaction */
+button:active:not(:disabled) {
+  transform: scale(0.97);
+  transition: transform 0.1s ease;
+}
+
+/* Card hover lift effect */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px -5px oklch(0.45 0.1 170 / 0.15);
+}
+
+/* Focus ring animation */
+@keyframes focus-ring {
+  0% { box-shadow: 0 0 0 0 oklch(0.45 0.1 170 / 0.4); }
+  100% { box-shadow: 0 0 0 4px oklch(0.45 0.1 170 / 0); }
+}
+
+/* Skeleton wave effect for loading states */
+@keyframes skeleton-wave {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.skeleton-wave {
+  position: relative;
+  overflow: hidden;
+  background: oklch(0.93 0.01 170);
+}
+
+.skeleton-wave::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.4), transparent);
+  animation: skeleton-wave 1.5s ease-in-out infinite;
+}
+
+.dark .skeleton-wave {
+  background: oklch(0.25 0.02 170);
+}
+
+.dark .skeleton-wave::after {
+  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.06), transparent);
+}
+
+/* Smooth number count-up for stats */
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.count-up {
+  animation: count-up 0.4s ease-out forwards;
+}
+
+/* Subtle background pattern for cards */
+.bg-pattern {
+  background-image: radial-gradient(oklch(0.45 0.1 170 / 0.03) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
 /* Safe area for mobile bottom nav */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .safe-bottom {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRecords, useCustomers, useServices, useDashboardData, useBalanceOverview } from '@/hooks/use-api'
+import { useRecords, useCustomers, useServices, useDashboardData, useBalanceOverview, usePayments } from '@/hooks/use-api'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -23,6 +23,9 @@ import {
   Trophy,
   ArrowUp,
   Wallet,
+  AlertTriangle,
+  MessageCircle,
+  ArrowRight,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -172,6 +175,265 @@ function BalanceOverview() {
   )
 }
 
+// Overdue Alerts sub-component
+function OverdueAlerts({ payments }: { payments: { customerId: string; customerName?: string; customer?: { id: string; name: string; phone: string | null }; amount: number; date: string; method: string }[] }) {
+  const { data: balanceData, isLoading } = useBalanceOverview()
+
+  const sendWhatsAppReminder = (customerName: string, balance: number, phone: string | null) => {
+    const message = `Merhaba ${customerName}, çamaşırhane hesabınızda ₺${balance.toLocaleString('tr-TR', { minimumFractionDigits: 0 })} tutarında ödeme bulunmaktadır. Ödemenizi yapmanızı rica ederiz.`
+    const encodedMessage = encodeURIComponent(message)
+
+    if (phone) {
+      // Remove any non-digit characters and ensure it starts with country code
+      const cleanPhone = phone.replace(/\D/g, '')
+      const whatsappPhone = cleanPhone.startsWith('0') ? cleanPhone.substring(1) : cleanPhone
+      window.open(`https://wa.me/90${whatsappPhone}?text=${encodedMessage}`, '_blank')
+    } else {
+      window.open(`https://wa.me/?text=${encodedMessage}`, '_blank')
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        <div className="h-32 rounded-lg shimmer-gradient" />
+      </div>
+    )
+  }
+
+  if (!balanceData) return null
+
+  // Filter customers with outstanding balance (balance > 0)
+  const debtors = balanceData.filter(b => b.balance > 0)
+
+  if (debtors.length === 0) return null
+
+  // Calculate last payment date per customer from payments
+  const lastPaymentByCustomer: Record<string, { date: string; daysAgo: number }> = {}
+  const now = new Date()
+  payments.forEach(p => {
+    const existing = lastPaymentByCustomer[p.customerId]
+    if (!existing || p.date > existing.date) {
+      const paymentDate = new Date(p.date + 'T00:00:00')
+      const diffTime = now.getTime() - paymentDate.getTime()
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+      lastPaymentByCustomer[p.customerId] = { date: p.date, daysAgo: diffDays }
+    }
+  })
+
+  // For customers with no payments, use a very high days-ago number
+  const getDaysSinceLastPayment = (customerId: string): number => {
+    const lastPayment = lastPaymentByCustomer[customerId]
+    if (!lastPayment) return 999 // No payment ever
+    return lastPayment.daysAgo
+  }
+
+  const getLastPaymentDate = (customerId: string): string | null => {
+    const lastPayment = lastPaymentByCustomer[customerId]
+    if (!lastPayment) return null
+    return new Date(lastPayment.date + 'T00:00:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })
+  }
+
+  const getCustomerPhone = (customerId: string): string | null => {
+    const payment = payments.find(p => p.customerId === customerId && p.customer?.phone)
+    return payment?.customer?.phone ?? null
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.15, duration: 0.4 }}
+    >
+      <Card className="overflow-hidden border-rose-200/50 dark:border-rose-900/50">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-rose-500" />
+            Gecikmiş Ödemeler
+            <Badge className="ml-auto bg-rose-500/10 text-rose-600 border-rose-200 text-[10px] font-bold">
+              {debtors.length} müşteri
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {debtors.map((item, idx) => {
+              const daysAgo = getDaysSinceLastPayment(item.customerId)
+              const lastDate = getLastPaymentDate(item.customerId)
+              const phone = getCustomerPhone(item.customerId)
+
+              const colorClass = daysAgo > 30
+                ? 'text-rose-600 bg-rose-500/10 border-rose-200/50 dark:border-rose-900/50'
+                : daysAgo > 15
+                ? 'text-amber-600 bg-amber-500/10 border-amber-200/50 dark:border-amber-900/50'
+                : 'text-muted-foreground bg-muted/50 border-transparent'
+
+              const dotColor = daysAgo > 30
+                ? 'bg-rose-500'
+                : daysAgo > 15
+                ? 'bg-amber-500'
+                : 'bg-gray-400'
+
+              const daysLabel = daysAgo === 999
+                ? 'Ödeme yok'
+                : daysAgo === 0
+                ? 'Bugün'
+                : daysAgo === 1
+                ? 'Dün'
+                : `${daysAgo} gün önce`
+
+              return (
+                <motion.div
+                  key={item.customerId}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: idx * 0.04 }}
+                  className={cn(
+                    "flex items-center justify-between py-2.5 px-3 rounded-lg border transition-colors",
+                    colorClass
+                  )}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div className={cn("w-2 h-2 rounded-full shrink-0", dotColor)} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{item.customerName}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-muted-foreground">{daysLabel}</span>
+                        {lastDate && (
+                          <span className="text-[10px] text-muted-foreground/70">
+                            (Son: {lastDate})
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={cn(
+                      "text-sm font-semibold",
+                      daysAgo > 30 ? "text-rose-600" : daysAgo > 15 ? "text-amber-600" : "text-foreground"
+                    )}>
+                      ₺{item.balance.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-[10px] gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        sendWhatsAppReminder(item.customerName, item.balance, phone)
+                      }}
+                    >
+                      <MessageCircle className="w-3 h-3" />
+                      Hatırlat
+                    </Button>
+                  </div>
+                </motion.div>
+              )
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
+  )
+}
+
+// Recent Payments sub-component
+function RecentPayments() {
+  const { data: payments, isLoading } = usePayments()
+  const { setActiveTab } = useAppStore()
+
+  const methodLabels: Record<string, { label: string; color: string }> = {
+    nakit: { label: 'Nakit', color: 'bg-emerald-500/10 text-emerald-600 border-emerald-200' },
+    kredi_karti: { label: 'Kredi Kartı', color: 'bg-sky-500/10 text-sky-600 border-sky-200' },
+    havale: { label: 'Havale', color: 'bg-amber-500/10 text-amber-600 border-amber-200' },
+    eft: { label: 'EFT', color: 'bg-purple-500/10 text-purple-600 border-purple-200' },
+  }
+
+  const recentPayments = payments?.slice(0, 5) ?? []
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.5, duration: 0.4 }}
+    >
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Wallet className="w-4 h-4 text-emerald-500" />
+            Son Ödemeler
+            <Badge variant="secondary" className="ml-auto text-[10px]">
+              {payments?.length ?? 0}
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-12 rounded-lg shimmer-gradient" />
+              ))}
+            </div>
+          ) : recentPayments.length === 0 ? (
+            <div className="text-center py-6">
+              <div className="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-3">
+                <Wallet className="w-6 h-6 text-muted-foreground/40" />
+              </div>
+              <p className="text-sm text-muted-foreground">Henüz ödeme kaydı yok</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {recentPayments.map((payment, idx) => {
+                const methodInfo = methodLabels[payment.method] ?? { label: payment.method, color: 'bg-muted text-muted-foreground border-border' }
+                const paymentDate = new Date(payment.date + 'T00:00:00').toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })
+
+                return (
+                  <motion.div
+                    key={payment.id}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.04 }}
+                    className="flex items-center justify-between py-2.5 px-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                        <Wallet className="w-4 h-4 text-emerald-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">
+                          {payment.customer?.name ?? 'Bilinmiyor'}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs text-muted-foreground">{paymentDate}</span>
+                          <Badge variant="outline" className={cn("text-[9px] h-4 px-1.5", methodInfo.color)}>
+                            {methodInfo.label}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-sm font-semibold text-emerald-600 shrink-0">
+                      ₺{payment.amount.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
+                    </span>
+                  </motion.div>
+                )
+              })}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full mt-1 text-xs gap-1 text-primary hover:text-primary/80"
+                onClick={() => setActiveTab('customers')}
+              >
+                Tümünü Gör
+                <ArrowRight className="w-3 h-3" />
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </motion.div>
+  )
+}
+
 export function Dashboard() {
   const { selectedMonth, setSelectedMonth, setActiveTab } = useAppStore()
 
@@ -190,6 +452,7 @@ export function Dashboard() {
   const { data: customers } = useCustomers()
   const { data: services } = useServices()
   const { data: dashboardData, isLoading: dashboardLoading } = useDashboardData()
+  const { data: payments } = usePayments()
 
   const prevMonth = () => {
     const d = new Date(year, month - 2, 1)
@@ -444,6 +707,9 @@ export function Dashboard() {
           </Card>
         </motion.div>
       </div>
+
+      {/* Overdue Alerts / Gecikmiş Ödemeler */}
+      <OverdueAlerts payments={payments ?? []} />
 
       {/* A. Weekly Comparison Card */}
       <motion.div
@@ -1039,6 +1305,9 @@ export function Dashboard() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Recent Payments / Son Ödemeler */}
+      <RecentPayments />
     </div>
   )
 }
