@@ -308,22 +308,16 @@ button:active:not(:disabled) {
 
 /* Print styles for invoice */
 @media print {
-  body * {
-    visibility: hidden;
+  /* Hide everything */
+  body > * {
+    display: none !important;
   }
 
-  .invoice-print,
-  .invoice-print * {
-    visibility: visible;
-  }
-
-  .invoice-print {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    background: white !important;
-    color: black !important;
+  /* Show only the print container */
+  body > .print-container {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
   }
 
   .print-actions,

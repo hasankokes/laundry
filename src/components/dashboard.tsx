@@ -569,7 +569,7 @@ export function Dashboard() {
           ))}
         </div>
         <Button variant="ghost" size="icon" onClick={prevMonth} className="hover:bg-primary/10">
-          <ChevronLeft className="w-5 h-5" />
+          <ChevronLeft className="w-4 h-4" />
         </Button>
         <div className="text-center">
           <h2 className="text-xl font-bold tracking-tight">
@@ -580,7 +580,7 @@ export function Dashboard() {
           </p>
         </div>
         <Button variant="ghost" size="icon" onClick={nextMonth} className="hover:bg-primary/10">
-          <ChevronRight className="w-5 h-5" />
+          <ChevronRight className="w-4 h-4" />
         </Button>
       </motion.div>
 
@@ -615,7 +615,7 @@ export function Dashboard() {
                   ₺{totalRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
                 </p>
               )}
-              <p className="text-[11px] text-white/70 mt-0.5">Aylık Ciro</p>
+              <p className="text-sm text-white/80 mt-1 font-medium">Aylık Ciro</p>
             </CardContent>
           </Card>
         </motion.div>
@@ -637,11 +637,11 @@ export function Dashboard() {
               {recordsLoading ? (
                 <div className="h-7 w-24 rounded-md shimmer-bg" />
               ) : (
-                <p className="text-2xl font-bold">
+                <p className="text-3xl font-bold">
                   ₺{todayRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}
                 </p>
               )}
-              <p className="text-[11px] text-white/70 mt-0.5">Bugünkü Ciro</p>
+              <p className="text-sm text-white/80 mt-1 font-medium">Bugünkü Ciro</p>
             </CardContent>
           </Card>
         </motion.div>
@@ -670,9 +670,9 @@ export function Dashboard() {
               {recordsLoading ? (
                 <div className="h-7 w-16 rounded-md shimmer-bg" />
               ) : (
-                <p className="text-2xl font-bold">{uniqueCustomers}</p>
+                <p className="text-3xl font-bold">{uniqueCustomers}</p>
               )}
-              <p className="text-[11px] text-white/70 mt-0.5">Aktif Müşteri</p>
+              <p className="text-sm text-white/80 mt-1 font-medium">Aktif Müşteri</p>
             </CardContent>
           </Card>
         </motion.div>
@@ -700,9 +700,9 @@ export function Dashboard() {
               {recordsLoading ? (
                 <div className="h-7 w-16 rounded-md shimmer-bg" />
               ) : (
-                <p className="text-2xl font-bold">{totalQuantity.toLocaleString('tr-TR')}</p>
+                <p className="text-3xl font-bold">{totalQuantity.toLocaleString('tr-TR')}</p>
               )}
-              <p className="text-[11px] text-white/70 mt-0.5">Toplam Adet</p>
+              <p className="text-sm text-white/80 mt-1 font-medium">Toplam Adet</p>
             </CardContent>
           </Card>
         </motion.div>
@@ -886,7 +886,7 @@ export function Dashboard() {
             className="w-full h-12 text-base gap-2 shadow-md hover:shadow-lg transition-shadow"
             onClick={() => setActiveTab('daily-entry')}
           >
-            <PlusCircle className="w-5 h-5" />
+            <PlusCircle className="w-4 h-4" />
             Günlük Kayıt Ekle
           </Button>
           <p className="text-[10px] text-muted-foreground text-center flex items-center justify-center gap-1">

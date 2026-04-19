@@ -507,7 +507,38 @@ export function InvoiceDialog({
   )
 
   const handlePrint = () => {
-    window.print()
+    const invoiceEl = document.querySelector('.invoice-print')
+    if (!invoiceEl) return
+
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
+
+    // Collect all stylesheets from current page
+    const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map(el => el.outerHTML)
+      .join('\n')
+
+    printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  ${styles}
+  <style>
+    @media print { @page { size: A4; margin: 10mm; } }
+    body { margin: 0; padding: 20px; background: white; }
+    table { border-collapse: collapse; width: 100%; }
+    table th, table td { border: 1px solid #ddd; }
+  </style>
+</head>
+<body>
+  ${invoiceEl.outerHTML}
+</body>
+</html>`)
+
+    printWindow.document.close()
+    printWindow.onload = () => {
+      printWindow.print()
+      printWindow.close()
+    }
   }
 
   const handleWhatsApp = () => {
