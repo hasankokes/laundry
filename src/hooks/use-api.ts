@@ -8,10 +8,13 @@ export interface Customer {
   name: string
   phone: string | null
   address: string | null
+  taxNumber: string | null
   notes: string | null
   tag: string | null
   createdAt: string
   updatedAt: string
+  isFavorite?: boolean
+  displayOrder?: number
   _count?: { records: number; prices: number }
   prices?: CustomerPrice[]
 }
@@ -23,6 +26,8 @@ export interface Service {
   defaultPrice: number
   createdAt: string
   updatedAt: string
+  isFavorite?: boolean
+  displayOrder?: number
   _count?: { records: number; prices: number }
 }
 
@@ -584,5 +589,69 @@ export function useReport(startDate: string, endDate: string, customerId?: strin
       return res.json() as Promise<ReportData>
     },
     enabled: !!startDate && !!endDate,
+  })
+}
+
+export function useToggleCustomerFavorite() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, isFavorite }: { id: string; isFavorite: boolean }) => {
+      const res = await fetch(`/api/customers/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isFavorite }),
+      })
+      if (!res.ok) throw new Error('Failed to toggle favorite')
+      return res.json()
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['customers'] }) },
+  })
+}
+
+export function useReorderCustomers() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (items: { id: string; displayOrder: number; isFavorite?: boolean }[]) => {
+      const res = await fetch('/api/customers', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      })
+      if (!res.ok) throw new Error('Failed to reorder')
+      return res.json()
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['customers'] }) },
+  })
+}
+
+export function useToggleServiceFavorite() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, isFavorite }: { id: string; isFavorite: boolean }) => {
+      const res = await fetch(`/api/services/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isFavorite }),
+      })
+      if (!res.ok) throw new Error('Failed to toggle favorite')
+      return res.json()
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['services'] }) },
+  })
+}
+
+export function useReorderServices() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (items: { id: string; displayOrder: number; isFavorite?: boolean }[]) => {
+      const res = await fetch('/api/services', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      })
+      if (!res.ok) throw new Error('Failed to reorder')
+      return res.json()
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['services'] }) },
   })
 }

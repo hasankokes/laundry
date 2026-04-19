@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { supabase, now } from '@/lib/supabase'
 
 // PUT /api/prices/[id] - Update a customer price
 export async function PUT(
@@ -11,7 +11,26 @@ export async function PUT(
     const body = await request.json()
     const { price } = body
 
-    const existing = await db.customerPrice.findUnique({ where: { id } })
+    const { data: existing, error: existingError } = await supabase
+      .from('CustomerPrice')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (existingError) {
+      if (existingError.code === 'PGRST116') {
+        return NextResponse.json(
+          { error: 'Fiyat kaydı bulunamadı' },
+          { status: 404 }
+        )
+      }
+      console.error('Error fetching price:', existingError)
+      return NextResponse.json(
+        { error: 'Fiyat güncellenirken hata oluştu' },
+        { status: 500 }
+      )
+    }
+
     if (!existing) {
       return NextResponse.json(
         { error: 'Fiyat kaydı bulunamadı' },
@@ -26,14 +45,20 @@ export async function PUT(
       )
     }
 
-    const customerPrice = await db.customerPrice.update({
-      where: { id },
-      data: { price },
-      include: {
-        customer: { select: { id: true, name: true } },
-        service: { select: { id: true, name: true, unit: true, defaultPrice: true } },
-      },
-    })
+    const { data: customerPrice, error } = await supabase
+      .from('CustomerPrice')
+      .update({ price, updatedAt: now() })
+      .eq('id', id)
+      .select('*, customer:Customer(id, name), service:Service(id, name, unit, defaultPrice)')
+      .single()
+
+    if (error) {
+      console.error('Error updating price:', error)
+      return NextResponse.json(
+        { error: 'Fiyat güncellenirken hata oluştu' },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json(customerPrice)
   } catch (error) {
@@ -53,7 +78,26 @@ export async function DELETE(
   try {
     const { id } = await params
 
-    const existing = await db.customerPrice.findUnique({ where: { id } })
+    const { data: existing, error: existingError } = await supabase
+      .from('CustomerPrice')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (existingError) {
+      if (existingError.code === 'PGRST116') {
+        return NextResponse.json(
+          { error: 'Fiyat kaydı bulunamadı' },
+          { status: 404 }
+        )
+      }
+      console.error('Error fetching price:', existingError)
+      return NextResponse.json(
+        { error: 'Fiyat kaydı silinirken hata oluştu' },
+        { status: 500 }
+      )
+    }
+
     if (!existing) {
       return NextResponse.json(
         { error: 'Fiyat kaydı bulunamadı' },
@@ -61,7 +105,18 @@ export async function DELETE(
       )
     }
 
-    await db.customerPrice.delete({ where: { id } })
+    const { error } = await supabase
+      .from('CustomerPrice')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error deleting price:', error)
+      return NextResponse.json(
+        { error: 'Fiyat kaydı silinirken hata oluştu' },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json({ message: 'Fiyat kaydı silindi' })
   } catch (error) {

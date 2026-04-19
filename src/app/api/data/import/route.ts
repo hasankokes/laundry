@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { supabase, now } from '@/lib/supabase'
 import { NextResponse } from 'next/server'
 
 interface ImportData {
@@ -66,109 +66,109 @@ export async function POST(request: Request) {
 
     // Import customers
     if (body.customers && Array.isArray(body.customers)) {
-      for (const customer of body.customers) {
-        if (!customer.id || !customer.name) continue
-        try {
-          await db.customer.upsert({
-            where: { id: customer.id },
-            update: {
-              name: customer.name,
-              phone: customer.phone ?? null,
-              address: customer.address ?? null,
-              notes: customer.notes ?? null,
-            },
-            create: {
-              id: customer.id,
-              name: customer.name,
-              phone: customer.phone ?? null,
-              address: customer.address ?? null,
-              notes: customer.notes ?? null,
-            },
-          })
-          result.customers++
-        } catch {
-          // Skip duplicates or invalid records
+      const validCustomers = body.customers
+        .filter(c => c.id && c.name)
+        .map(c => ({
+          id: c.id,
+          name: c.name,
+          phone: c.phone ?? null,
+          address: c.address ?? null,
+          notes: c.notes ?? null,
+          createdAt: c.createdAt ?? now(),
+          updatedAt: c.updatedAt ?? now(),
+        }))
+
+      if (validCustomers.length > 0) {
+        const { error } = await supabase
+          .from('Customer')
+          .upsert(validCustomers, { onConflict: 'id' })
+
+        if (!error) {
+          result.customers = validCustomers.length
+        } else {
+          console.error('Import customers error:', error)
         }
       }
     }
 
     // Import services
     if (body.services && Array.isArray(body.services)) {
-      for (const service of body.services) {
-        if (!service.id || !service.name) continue
-        try {
-          await db.service.upsert({
-            where: { id: service.id },
-            update: {
-              name: service.name,
-              unit: service.unit ?? 'adet',
-              defaultPrice: service.defaultPrice ?? 0,
-            },
-            create: {
-              id: service.id,
-              name: service.name,
-              unit: service.unit ?? 'adet',
-              defaultPrice: service.defaultPrice ?? 0,
-            },
-          })
-          result.services++
-        } catch {
-          // Skip duplicates or invalid records
+      const validServices = body.services
+        .filter(s => s.id && s.name)
+        .map(s => ({
+          id: s.id,
+          name: s.name,
+          unit: s.unit ?? 'adet',
+          defaultPrice: s.defaultPrice ?? 0,
+          createdAt: s.createdAt ?? now(),
+          updatedAt: s.updatedAt ?? now(),
+        }))
+
+      if (validServices.length > 0) {
+        const { error } = await supabase
+          .from('Service')
+          .upsert(validServices, { onConflict: 'id' })
+
+        if (!error) {
+          result.services = validServices.length
+        } else {
+          console.error('Import services error:', error)
         }
       }
     }
 
     // Import customer prices
     if (body.customerPrices && Array.isArray(body.customerPrices)) {
-      for (const price of body.customerPrices) {
-        if (!price.id || !price.customerId || !price.serviceId) continue
-        try {
-          await db.customerPrice.upsert({
-            where: { id: price.id },
-            update: {
-              price: price.price,
-            },
-            create: {
-              id: price.id,
-              customerId: price.customerId,
-              serviceId: price.serviceId,
-              price: price.price,
-            },
-          })
-          result.customerPrices++
-        } catch {
-          // Skip duplicates or invalid records
+      const validPrices = body.customerPrices
+        .filter(p => p.id && p.customerId && p.serviceId)
+        .map(p => ({
+          id: p.id,
+          customerId: p.customerId,
+          serviceId: p.serviceId,
+          price: p.price,
+          createdAt: p.createdAt ?? now(),
+          updatedAt: p.updatedAt ?? now(),
+        }))
+
+      if (validPrices.length > 0) {
+        const { error } = await supabase
+          .from('CustomerPrice')
+          .upsert(validPrices, { onConflict: 'id' })
+
+        if (!error) {
+          result.customerPrices = validPrices.length
+        } else {
+          console.error('Import customer prices error:', error)
         }
       }
     }
 
     // Import daily records
     if (body.dailyRecords && Array.isArray(body.dailyRecords)) {
-      for (const record of body.dailyRecords) {
-        if (!record.id || !record.customerId || !record.serviceId || !record.date) continue
-        try {
-          await db.dailyRecord.upsert({
-            where: { id: record.id },
-            update: {
-              quantity: record.quantity ?? 1,
-              unitPrice: record.unitPrice,
-              total: record.total,
-              notes: record.notes ?? null,
-            },
-            create: {
-              id: record.id,
-              customerId: record.customerId,
-              serviceId: record.serviceId,
-              date: record.date,
-              quantity: record.quantity ?? 1,
-              unitPrice: record.unitPrice,
-              total: record.total,
-              notes: record.notes ?? null,
-            },
-          })
-          result.dailyRecords++
-        } catch {
-          // Skip duplicates or invalid records
+      const validRecords = body.dailyRecords
+        .filter(r => r.id && r.customerId && r.serviceId && r.date)
+        .map(r => ({
+          id: r.id,
+          customerId: r.customerId,
+          serviceId: r.serviceId,
+          date: r.date,
+          quantity: r.quantity ?? 1,
+          unitPrice: r.unitPrice,
+          total: r.total,
+          notes: r.notes ?? null,
+          createdAt: r.createdAt ?? now(),
+          updatedAt: r.updatedAt ?? now(),
+        }))
+
+      if (validRecords.length > 0) {
+        const { error } = await supabase
+          .from('DailyRecord')
+          .upsert(validRecords, { onConflict: 'id' })
+
+        if (!error) {
+          result.dailyRecords = validRecords.length
+        } else {
+          console.error('Import daily records error:', error)
         }
       }
     }

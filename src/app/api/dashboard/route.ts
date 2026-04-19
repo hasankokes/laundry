@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { supabase } from '@/lib/supabase'
 
 function getMonday(d: Date): Date {
   const date = new Date(d)
@@ -26,21 +26,32 @@ export async function GET() {
     const lastSunday = new Date(thisMonday)
     lastSunday.setDate(lastSunday.getDate() - 1)
 
-    const thisWeekRecords = await db.dailyRecord.findMany({
-      where: {
-        date: { gte: formatDate(thisMonday), lte: today },
-      },
-      select: { total: true },
-    })
-    const lastWeekRecords = await db.dailyRecord.findMany({
-      where: {
-        date: { gte: formatDate(lastMonday), lte: formatDate(lastSunday) },
-      },
-      select: { total: true },
-    })
+    const [
+      { data: thisWeekRecords, error: thisWeekError },
+      { data: lastWeekRecords, error: lastWeekError },
+    ] = await Promise.all([
+      supabase
+        .from('DailyRecord')
+        .select('total')
+        .gte('date', formatDate(thisMonday))
+        .lte('date', today),
+      supabase
+        .from('DailyRecord')
+        .select('total')
+        .gte('date', formatDate(lastMonday))
+        .lte('date', formatDate(lastSunday)),
+    ])
 
-    const thisWeekRevenue = thisWeekRecords.reduce((sum, r) => sum + r.total, 0)
-    const lastWeekRevenue = lastWeekRecords.reduce((sum, r) => sum + r.total, 0)
+    if (thisWeekError || lastWeekError) {
+      console.error('Weekly comparison error:', thisWeekError || lastWeekError)
+      return NextResponse.json(
+        { error: 'Dashboard verileri yüklenemedi' },
+        { status: 500 }
+      )
+    }
+
+    const thisWeekRevenue = (thisWeekRecords ?? []).reduce((sum, r) => sum + r.total, 0)
+    const lastWeekRevenue = (lastWeekRecords ?? []).reduce((sum, r) => sum + r.total, 0)
     const weeklyChange = lastWeekRevenue > 0
       ? ((thisWeekRevenue - lastWeekRevenue) / lastWeekRevenue) * 100
       : thisWeekRevenue > 0 ? 100 : 0
@@ -52,13 +63,22 @@ export async function GET() {
     // Fetch all records for the past year to check streak efficiently
     const oneYearAgo = new Date(now)
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
-    const recentRecords = await db.dailyRecord.findMany({
-      where: {
-        date: { gte: formatDate(oneYearAgo), lte: today },
-      },
-      select: { date: true },
-    })
-    const datesWithRecords = new Set(recentRecords.map(r => r.date))
+
+    const { data: recentRecords, error: recentError } = await supabase
+      .from('DailyRecord')
+      .select('date')
+      .gte('date', formatDate(oneYearAgo))
+      .lte('date', today)
+
+    if (recentError) {
+      console.error('Streak query error:', recentError)
+      return NextResponse.json(
+        { error: 'Dashboard verileri yüklenemedi' },
+        { status: 500 }
+      )
+    }
+
+    const datesWithRecords = new Set((recentRecords ?? []).map(r => r.date))
 
     const streakStart = new Date(now)
     streakStart.setDate(streakStart.getDate() - 1)
@@ -78,15 +98,22 @@ export async function GET() {
     const monthStart = formatDate(new Date(currentYear, currentMonth, 1))
     const monthEnd = formatDate(new Date(currentYear, currentMonth + 1, 0))
 
-    const monthRecords = await db.dailyRecord.findMany({
-      where: {
-        date: { gte: monthStart, lte: monthEnd },
-      },
-      select: { date: true, total: true },
-    })
+    const { data: monthRecords, error: monthError } = await supabase
+      .from('DailyRecord')
+      .select('date, total')
+      .gte('date', monthStart)
+      .lte('date', monthEnd)
+
+    if (monthError) {
+      console.error('Month records error:', monthError)
+      return NextResponse.json(
+        { error: 'Dashboard verileri yüklenemedi' },
+        { status: 500 }
+      )
+    }
 
     const dailyTotals: Record<string, number> = {}
-    monthRecords.forEach(r => {
+    ;(monthRecords ?? []).forEach(r => {
       if (!dailyTotals[r.date]) dailyTotals[r.date] = 0
       dailyTotals[r.date] += r.total
     })
@@ -99,17 +126,25 @@ export async function GET() {
     })
 
     // 4. Monthly Target
-    const totalMonthRevenue = monthRecords.reduce((sum, r) => sum + r.total, 0)
-    const daysWithMonthData = new Set(monthRecords.map(r => r.date)).size
+    const totalMonthRevenue = (monthRecords ?? []).reduce((sum, r) => sum + r.total, 0)
+    const daysWithMonthData = new Set((monthRecords ?? []).map(r => r.date)).size
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
     const monthlyTarget = daysWithMonthData > 0
       ? (totalMonthRevenue / daysWithMonthData) * daysInMonth
       : 0
 
     // 5. Revenue by Day of Week (all time)
-    const allRecords = await db.dailyRecord.findMany({
-      select: { date: true, total: true },
-    })
+    const { data: allRecords, error: allRecordsError } = await supabase
+      .from('DailyRecord')
+      .select('date, total')
+
+    if (allRecordsError) {
+      console.error('All records error:', allRecordsError)
+      return NextResponse.json(
+        { error: 'Dashboard verileri yüklenemedi' },
+        { status: 500 }
+      )
+    }
 
     const dayOfWeekTotals: Record<number, { total: number; count: number }> = {
       1: { total: 0, count: 0 }, // Monday
@@ -127,7 +162,7 @@ export async function GET() {
       5: new Set(), 6: new Set(), 0: new Set(),
     }
 
-    allRecords.forEach(r => {
+    ;(allRecords ?? []).forEach(r => {
       const dayOfWeek = new Date(r.date + 'T00:00:00').getDay()
       dayOfWeekTotals[dayOfWeek].total += r.total
       dayOfWeekDates[dayOfWeek].add(r.date)
@@ -152,26 +187,40 @@ export async function GET() {
     const prevMonthStart = formatDate(prevMonthDate)
     const prevMonthEnd = formatDate(new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth() + 1, 0))
 
-    const thisMonthCustomerRecords = await db.dailyRecord.findMany({
-      where: { date: { gte: thisMonthStart, lte: thisMonthEnd } },
-      select: { customerId: true, total: true, customer: { select: { name: true } } },
-    })
+    const [
+      { data: thisMonthCustomerRecords, error: thisMonthError },
+      { data: lastMonthCustomerRecords, error: lastMonthError2 },
+    ] = await Promise.all([
+      supabase
+        .from('DailyRecord')
+        .select('customerId, total, customer:Customer(name)')
+        .gte('date', thisMonthStart)
+        .lte('date', thisMonthEnd),
+      supabase
+        .from('DailyRecord')
+        .select('customerId, total')
+        .gte('date', prevMonthStart)
+        .lte('date', prevMonthEnd),
+    ])
 
-    const lastMonthCustomerRecords = await db.dailyRecord.findMany({
-      where: { date: { gte: prevMonthStart, lte: prevMonthEnd } },
-      select: { customerId: true, total: true },
-    })
+    if (thisMonthError || lastMonthError2) {
+      console.error('Top growth error:', thisMonthError || lastMonthError2)
+      return NextResponse.json(
+        { error: 'Dashboard verileri yüklenemedi' },
+        { status: 500 }
+      )
+    }
 
     const thisMonthByCustomer: Record<string, { name: string; total: number }> = {}
-    thisMonthCustomerRecords.forEach(r => {
+    ;(thisMonthCustomerRecords ?? []).forEach(r => {
       if (!thisMonthByCustomer[r.customerId]) {
-        thisMonthByCustomer[r.customerId] = { name: r.customer.name, total: 0 }
+        thisMonthByCustomer[r.customerId] = { name: (r.customer as unknown as { name: string }).name, total: 0 }
       }
       thisMonthByCustomer[r.customerId].total += r.total
     })
 
     const lastMonthByCustomer: Record<string, number> = {}
-    lastMonthCustomerRecords.forEach(r => {
+    ;(lastMonthCustomerRecords ?? []).forEach(r => {
       if (!lastMonthByCustomer[r.customerId]) lastMonthByCustomer[r.customerId] = 0
       lastMonthByCustomer[r.customerId] += r.total
     })

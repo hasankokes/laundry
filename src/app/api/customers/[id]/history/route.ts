@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { supabase } from '@/lib/supabase'
 
 // GET /api/customers/[id]/history - Customer detail with full history and balance
 export async function GET(
@@ -13,43 +13,69 @@ export async function GET(
     const endDate = searchParams.get('endDate') || undefined
 
     // Get customer info
-    const customer = await db.customer.findUnique({
-      where: { id },
-      include: {
-        prices: {
-          include: { service: true },
-          orderBy: { service: { name: 'asc' } },
-        },
-      },
-    })
+    const { data: customer, error: customerError } = await supabase
+      .from('Customer')
+      .select('*')
+      .eq('id', id)
+      .single()
 
-    if (!customer) {
+    if (customerError || !customer) {
       return NextResponse.json(
         { error: 'Müşteri bulunamadı' },
         { status: 404 }
       )
     }
 
-    // Build date filter for records
-    const dateFilter: any = {}
-    if (startDate) dateFilter.gte = startDate
-    if (endDate) dateFilter.lte = endDate
+    // Fetch prices with service
+    const { data: prices, error: pricesError } = await supabase
+      .from('CustomerPrice')
+      .select('*, service:Service(*)')
+      .eq('customerId', id)
 
-    const whereClause: any = { customerId: id }
-    if (startDate || endDate) {
-      whereClause.date = dateFilter
+    if (pricesError) {
+      console.error('Error fetching prices:', pricesError)
+      return NextResponse.json(
+        { error: 'Müşteri geçmişi yüklenirken hata oluştu' },
+        { status: 500 }
+      )
     }
 
-    // Get all records for this customer
-    const records = await db.dailyRecord.findMany({
-      where: whereClause,
-      include: { service: true },
-      orderBy: { date: 'desc' },
+    // Sort prices by service name
+    const sortedPrices = (prices ?? []).sort((a: any, b: any) => {
+      const nameA = a.service?.name ?? ''
+      const nameB = b.service?.name ?? ''
+      return nameA.localeCompare(nameB)
     })
 
+    // Build records query with optional date filters
+    let recordsQuery = supabase
+      .from('DailyRecord')
+      .select('*, service:Service(*)')
+      .eq('customerId', id)
+
+    if (startDate) {
+      recordsQuery = recordsQuery.gte('date', startDate)
+    }
+    if (endDate) {
+      recordsQuery = recordsQuery.lte('date', endDate)
+    }
+
+    const { data: records, error: recordsError } = await recordsQuery
+      .order('date', { ascending: false })
+
+    if (recordsError) {
+      console.error('Error fetching records:', recordsError)
+      return NextResponse.json(
+        { error: 'Müşteri geçmişi yüklenirken hata oluştu' },
+        { status: 500 }
+      )
+    }
+
+    const allRecords = records ?? []
+
     // Calculate totals
-    const totalBalance = records.reduce((sum, r) => sum + r.total, 0)
-    const recordCount = records.length
+    const totalBalance = allRecords.reduce((sum: number, r: any) => sum + r.total, 0)
+    const recordCount = allRecords.length
 
     // Service breakdown
     const serviceMap: Record<string, {
@@ -60,7 +86,7 @@ export async function GET(
       totalRevenue: number
     }> = {}
 
-    records.forEach(r => {
+    allRecords.forEach((r: any) => {
       if (!serviceMap[r.serviceId]) {
         serviceMap[r.serviceId] = {
           serviceId: r.serviceId,
@@ -84,7 +110,7 @@ export async function GET(
       recordCount: number
     }> = {}
 
-    records.forEach(r => {
+    allRecords.forEach((r: any) => {
       const month = r.date.substring(0, 7) // YYYY-MM
       if (!monthMap[month]) {
         monthMap[month] = {
@@ -101,7 +127,7 @@ export async function GET(
       .sort((a, b) => b.month.localeCompare(a.month))
 
     // Recent records (last 20)
-    const recentRecords = records.slice(0, 20).map(r => ({
+    const recentRecords = allRecords.slice(0, 20).map((r: any) => ({
       id: r.id,
       date: r.date,
       serviceId: r.serviceId,
@@ -113,7 +139,7 @@ export async function GET(
     }))
 
     // Custom prices
-    const customPrices = customer.prices.map(p => ({
+    const customPrices = sortedPrices.map((p: any) => ({
       id: p.id,
       serviceId: p.serviceId,
       serviceName: p.service?.name ?? 'Bilinmiyor',

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useInvoice, InvoiceData } from '@/hooks/use-api'
 import {
   Dialog,
@@ -416,19 +416,7 @@ interface InvoiceDialogProps {
   customerId: string
 }
 
-function loadFromLocalStorage<T>(key: string, defaults: T): T {
-  if (typeof window === 'undefined') return defaults
-  try {
-    const saved = localStorage.getItem(key)
-    if (saved) {
-      const parsed = JSON.parse(saved)
-      return { ...defaults, ...parsed }
-    }
-  } catch {
-    // Use defaults if localStorage is corrupted
-  }
-  return defaults
-}
+
 
 /**
  * Build a WhatsApp summary text for the invoice
@@ -484,16 +472,30 @@ export function InvoiceDialog({
   customerId,
 }: InvoiceDialogProps) {
   const [viewMode, setViewMode] = useState<'preview' | 'data'>('preview')
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(defaultCompanyInfo)
+  const [preferences, setPreferences] = useState<AppPreferences>(defaultPreferences)
 
-  // Read from localStorage; re-read when dialog opens (open changes to true)
-  const companyInfo = useMemo<CompanyInfo>(() => {
-    if (!open) return defaultCompanyInfo
-    return loadFromLocalStorage('company-info', defaultCompanyInfo)
-  }, [open])
-
-  const preferences = useMemo<AppPreferences>(() => {
-    if (!open) return defaultPreferences
-    return loadFromLocalStorage('app-preferences', defaultPreferences)
+  // Fetch settings from Supabase when dialog opens
+  useEffect(() => {
+    if (!open) return
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (data && !data.error) {
+          setCompanyInfo({
+            name: data.companyName || defaultCompanyInfo.name,
+            address: data.companyAddress || defaultCompanyInfo.address,
+            phone: data.companyPhone || defaultCompanyInfo.phone,
+            taxNumber: data.companyTaxNumber || defaultCompanyInfo.taxNumber,
+          })
+          setPreferences({
+            kdvRate: data.kdvRate ?? defaultPreferences.kdvRate,
+            invoiceDueDays: data.invoiceDueDays ?? defaultPreferences.invoiceDueDays,
+            currencySymbol: data.currencySymbol || defaultPreferences.currencySymbol,
+          })
+        }
+      })
+      .catch(() => {})
   }, [open])
 
   const { data: invoice, isLoading, error } = useInvoice(

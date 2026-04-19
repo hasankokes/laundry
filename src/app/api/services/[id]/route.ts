@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { supabase, now } from '@/lib/supabase'
 
 // GET /api/services/[id] - Get a single service
 export async function GET(
@@ -8,23 +8,41 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const service = await db.service.findUnique({
-      where: { id },
-      include: {
-        _count: {
-          select: { records: true, prices: true },
-        },
-      },
-    })
+    const { data: service, error } = await supabase
+      .from('Service')
+      .select('*')
+      .eq('id', id)
+      .single()
 
-    if (!service) {
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json(
+          { error: 'Hizmet bulunamadı' },
+          { status: 404 }
+        )
+      }
+      console.error('Error fetching service:', error)
       return NextResponse.json(
-        { error: 'Hizmet bulunamadı' },
-        { status: 404 }
+        { error: 'Hizmet yüklenirken hata oluştu' },
+        { status: 500 }
       )
     }
 
-    return NextResponse.json(service)
+    // Fetch counts
+    const [recordsResult, pricesResult] = await Promise.all([
+      supabase.from('DailyRecord').select('id', { count: 'exact', head: true }).eq('serviceId', id),
+      supabase.from('CustomerPrice').select('id', { count: 'exact', head: true }).eq('serviceId', id),
+    ])
+
+    const serviceWithCount = {
+      ...service,
+      _count: {
+        records: recordsResult.count ?? 0,
+        prices: pricesResult.count ?? 0,
+      },
+    }
+
+    return NextResponse.json(serviceWithCount)
   } catch (error) {
     console.error('Error fetching service:', error)
     return NextResponse.json(
@@ -42,9 +60,28 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { name, unit, defaultPrice } = body
+    const { name, unit, defaultPrice, isFavorite, displayOrder } = body
 
-    const existing = await db.service.findUnique({ where: { id } })
+    const { data: existing, error: existingError } = await supabase
+      .from('Service')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (existingError) {
+      if (existingError.code === 'PGRST116') {
+        return NextResponse.json(
+          { error: 'Hizmet bulunamadı' },
+          { status: 404 }
+        )
+      }
+      console.error('Error fetching service:', existingError)
+      return NextResponse.json(
+        { error: 'Hizmet güncellenirken hata oluştu' },
+        { status: 500 }
+      )
+    }
+
     if (!existing) {
       return NextResponse.json(
         { error: 'Hizmet bulunamadı' },
@@ -52,14 +89,28 @@ export async function PUT(
       )
     }
 
-    const service = await db.service.update({
-      where: { id },
-      data: {
-        name: name !== undefined ? name.trim() : undefined,
-        unit: unit !== undefined ? unit?.trim() || 'adet' : undefined,
-        defaultPrice: defaultPrice !== undefined ? defaultPrice : undefined,
-      },
-    })
+    const updateData: Record<string, unknown> = {}
+    if (name !== undefined) updateData.name = name.trim()
+    if (unit !== undefined) updateData.unit = unit?.trim() || 'adet'
+    if (defaultPrice !== undefined) updateData.defaultPrice = defaultPrice
+    if (isFavorite !== undefined) updateData.isFavorite = isFavorite
+    if (displayOrder !== undefined) updateData.displayOrder = displayOrder
+    updateData.updatedAt = now()
+
+    const { data: service, error } = await supabase
+      .from('Service')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating service:', error)
+      return NextResponse.json(
+        { error: 'Hizmet güncellenirken hata oluştu' },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json(service)
   } catch (error) {
@@ -79,7 +130,26 @@ export async function DELETE(
   try {
     const { id } = await params
 
-    const existing = await db.service.findUnique({ where: { id } })
+    const { data: existing, error: existingError } = await supabase
+      .from('Service')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (existingError) {
+      if (existingError.code === 'PGRST116') {
+        return NextResponse.json(
+          { error: 'Hizmet bulunamadı' },
+          { status: 404 }
+        )
+      }
+      console.error('Error fetching service:', existingError)
+      return NextResponse.json(
+        { error: 'Hizmet silinirken hata oluştu' },
+        { status: 500 }
+      )
+    }
+
     if (!existing) {
       return NextResponse.json(
         { error: 'Hizmet bulunamadı' },
@@ -87,7 +157,18 @@ export async function DELETE(
       )
     }
 
-    await db.service.delete({ where: { id } })
+    const { error } = await supabase
+      .from('Service')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error deleting service:', error)
+      return NextResponse.json(
+        { error: 'Hizmet silinirken hata oluştu' },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json({ message: 'Hizmet silindi' })
   } catch (error) {

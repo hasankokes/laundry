@@ -9,7 +9,12 @@ import {
   useServices,
   usePrices,
   useSetPrice,
+  useToggleCustomerFavorite,
+  useReorderCustomers,
 } from '@/hooks/use-api'
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { CustomerDetail } from '@/components/customer-detail'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -55,6 +60,8 @@ import {
   ChevronUp,
   Eye,
   Tag,
+  Star,
+  GripVertical,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -105,6 +112,13 @@ export function Customers() {
   const updateCustomer = useUpdateCustomer()
   const deleteCustomer = useDeleteCustomer()
   const setPrice = useSetPrice()
+  const toggleFavorite = useToggleCustomerFavorite()
+  const reorderMutation = useReorderCustomers()
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
 
   const filteredCustomers = customers
     ?.filter(c => !searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.phone?.includes(searchQuery))
@@ -116,6 +130,7 @@ export function Customers() {
     const name = formData.get('name') as string
     const phone = formData.get('phone') as string
     const address = formData.get('address') as string
+    const taxNumber = formData.get('taxNumber') as string
     const notes = formData.get('notes') as string
     const tag = formData.get('tag') as string
 
@@ -129,6 +144,7 @@ export function Customers() {
         name: name.trim(),
         phone: phone?.trim() || undefined,
         address: address?.trim() || undefined,
+        taxNumber: taxNumber?.trim() || undefined,
         notes: notes?.trim() || undefined,
         tag: tag || undefined,
       })
@@ -145,6 +161,7 @@ export function Customers() {
     const name = formData.get('name') as string
     const phone = formData.get('phone') as string
     const address = formData.get('address') as string
+    const taxNumber = formData.get('taxNumber') as string
     const notes = formData.get('notes') as string
     const tag = formData.get('tag') as string
 
@@ -154,6 +171,7 @@ export function Customers() {
         name: name.trim(),
         phone: phone?.trim() || undefined,
         address: address?.trim() || undefined,
+        taxNumber: taxNumber?.trim() || undefined,
         notes: notes?.trim() || undefined,
         tag: tag || undefined,
       })
@@ -190,6 +208,21 @@ export function Customers() {
   }
 
   const selectedCustomerData = customers?.find(c => c.id === selectedCustomer)
+
+  const handleDragEnd = (event: any) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = filteredCustomers!.findIndex((c: any) => c.id === active.id)
+    const newIndex = filteredCustomers!.findIndex((c: any) => c.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const reordered = [...filteredCustomers!]
+    const [moved] = reordered.splice(oldIndex, 1)
+    reordered.splice(newIndex, 0, moved)
+
+    reorderMutation.mutate(reordered.map((c: any, i: number) => ({ id: c.id, displayOrder: i, isFavorite: c.isFavorite })))
+  }
 
   // When opening edit dialog from CustomerDetail
   const handleEditFromDetail = (id: string) => {
@@ -242,6 +275,10 @@ export function Customers() {
               <div className="space-y-2">
                 <Label>Adres</Label>
                 <Input name="address" defaultValue={selectedCustomerData?.address ?? ''} />
+              </div>
+              <div className="space-y-2">
+                <Label>Vergi No</Label>
+                <Input name="taxNumber" defaultValue={selectedCustomerData?.taxNumber ?? ''} placeholder="Vergi numarası (opsiyonel)" />
               </div>
               <div className="space-y-2">
                 <Label>Notlar</Label>
@@ -388,7 +425,7 @@ export function Customers() {
               <Select name="tag" defaultValue="">
                 <SelectTrigger><SelectValue placeholder="Etiket seçin" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Etiket yok</SelectItem>
+                  <SelectItem value="none">Etiket yok</SelectItem>
                   {TAG_OPTIONS.map(tag => (
                     <SelectItem key={tag} value={tag}>{TAG_CONFIG[tag].icon} {tag}</SelectItem>
                   ))}
@@ -402,6 +439,10 @@ export function Customers() {
             <div className="space-y-2">
               <Label>Adres</Label>
               <Input name="address" placeholder="Adres" />
+            </div>
+            <div className="space-y-2">
+              <Label>Vergi No</Label>
+              <Input name="taxNumber" placeholder="Vergi numarası (opsiyonel)" />
             </div>
             <div className="space-y-2">
               <Label>Notlar</Label>
@@ -421,156 +462,15 @@ export function Customers() {
             <Skeleton key={i} className="h-24 w-full rounded-lg" />
           ))
         ) : filteredCustomers && filteredCustomers.length > 0 ? (
-          filteredCustomers.map((customer) => {
-            const recordCount = customer._count?.records ?? 0
-            // Border accent: more records = more saturated color
-            const accentColor = recordCount > 15 ? 'border-l-emerald-500' : recordCount > 8 ? 'border-l-teal-500' : recordCount > 3 ? 'border-l-amber-500' : 'border-l-muted-foreground/30'
-            return (
-            <Card key={customer.id} className={cn(
-              "overflow-hidden hover:shadow-lg transition-all border-l-4",
-              accentColor
-            )}
-            >
-              <CardContent className="p-4">
-                <div
-                  className="flex items-start justify-between cursor-pointer"
-                  onClick={() => setExpandedCustomer(
-                    expandedCustomer === customer.id ? null : customer.id
-                  )}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      {/* Initials avatar with hash-based color */}
-                      <div className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white text-xs font-bold",
-                        getAvatarColor(customer.name)
-                      )}>
-                        {customer.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <p className="font-medium text-sm truncate">{customer.name}</p>
-                          {customer.tag && TAG_CONFIG[customer.tag] && (
-                            <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium inline-flex items-center gap-0.5", TAG_CONFIG[customer.tag].bg, TAG_CONFIG[customer.tag].color)}>
-                              <span>{TAG_CONFIG[customer.tag].icon}</span>
-                              {TAG_CONFIG[customer.tag].label}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-                          {customer.phone && (
-                            <span className="flex items-center gap-1">
-                              <Phone className="w-3 h-3" />
-                              {customer.phone}
-                            </span>
-                          )}
-                          {customer.address && (
-                            <span className="flex items-center gap-1 truncate">
-                              <MapPin className="w-3 h-3" />
-                              {customer.address}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Badge variant="secondary" className="text-[10px]">
-                      {recordCount} kayıt
-                    </Badge>
-                    {expandedCustomer === customer.id ? (
-                      <ChevronUp className="w-4 h-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                    )}
-                  </div>
-                </div>
-
-                {/* Expanded content with slide-in animation */}
-                <AnimatePresence>
-                  {expandedCustomer === customer.id && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.2, ease: 'easeOut' }}
-                      className="overflow-hidden"
-                    >
-                      <div className="mt-3 pt-3 border-t space-y-2">
-                        {customer.notes && (
-                          <p className="text-xs text-muted-foreground italic">
-                            Not: {customer.notes}
-                          </p>
-                        )}
-                        <div className="flex gap-2">
-                          <Button
-                            variant="default"
-                            size="sm"
-                            className="flex-1 gap-1"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setSelectedCustomerId(customer.id)
-                            }}
-                          >
-                            <Eye className="w-3 h-3" />
-                            Detay
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 gap-1"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setSelectedCustomer(customer.id)
-                              setPricingOpen(true)
-                            }}
-                          >
-                            <DollarSign className="w-3 h-3" />
-                            Fiyatlar
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 gap-1"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setSelectedCustomer(customer.id)
-                              setEditOpen(true)
-                            }}
-                          >
-                            <Pencil className="w-3 h-3" />
-                            Düzenle
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive gap-1" onClick={(e) => e.stopPropagation()}>
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Müşteriyi Sil</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  {customer.name} müşterisini silmek istediğinizden emin misiniz? Bu müşteriye ait tüm kayıtlar da silinecektir.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>İptal</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDeleteCustomer(customer.id)}>
-                                  Sil
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </CardContent>
-            </Card>
-            )
-          })
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={filteredCustomers.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+              <AnimatePresence>
+                {filteredCustomers.map((customer) => (
+                  <SortableCustomerCard key={customer.id} customer={customer} expandedCustomer={expandedCustomer} setExpandedCustomer={setExpandedCustomer} setSelectedCustomerId={setSelectedCustomerId} setSelectedCustomer={setSelectedCustomer} setPricingOpen={setPricingOpen} setEditOpen={setEditOpen} handleDeleteCustomer={handleDeleteCustomer} toggleFavorite={toggleFavorite} />
+                ))}
+              </AnimatePresence>
+            </SortableContext>
+          </DndContext>
         ) : (
           <Card>
             <CardContent className="p-8 text-center">
@@ -602,7 +502,7 @@ export function Customers() {
               <Select name="tag" defaultValue={selectedCustomerData?.tag ?? ''}>
                 <SelectTrigger><SelectValue placeholder="Etiket seçin" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Etiket yok</SelectItem>
+                  <SelectItem value="none">Etiket yok</SelectItem>
                   {TAG_OPTIONS.map(tag => (
                     <SelectItem key={tag} value={tag}>{TAG_CONFIG[tag].icon} {tag}</SelectItem>
                   ))}
@@ -616,6 +516,10 @@ export function Customers() {
             <div className="space-y-2">
               <Label>Adres</Label>
               <Input name="address" defaultValue={selectedCustomerData?.address ?? ''} />
+            </div>
+            <div className="space-y-2">
+              <Label>Vergi No</Label>
+              <Input name="taxNumber" defaultValue={selectedCustomerData?.taxNumber ?? ''} placeholder="Vergi numarası (opsiyonel)" />
             </div>
             <div className="space-y-2">
               <Label>Notlar</Label>
@@ -681,6 +585,185 @@ export function Customers() {
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+function SortableCustomerCard({ customer, expandedCustomer, setExpandedCustomer, setSelectedCustomerId, setSelectedCustomer, setPricingOpen, setEditOpen, handleDeleteCustomer, toggleFavorite }: any) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: customer.id })
+  const style = { transform: CSS.Transform.toString(transform), transition }
+
+  const recordCount = customer._count?.records ?? 0
+  const accentColor = recordCount > 15 ? 'border-l-emerald-500' : recordCount > 8 ? 'border-l-teal-500' : recordCount > 3 ? 'border-l-amber-500' : 'border-l-muted-foreground/30'
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <Card className={cn(
+        "overflow-hidden hover:shadow-lg transition-all border-l-4",
+        accentColor
+      )}>
+        <CardContent className="p-4">
+          <div
+            className="flex items-start justify-between cursor-pointer"
+            onClick={() => setExpandedCustomer(
+              expandedCustomer === customer.id ? null : customer.id
+            )}
+          >
+            <div className="flex items-start gap-2 flex-1 min-w-0">
+              {/* Drag handle */}
+              <button
+                {...attributes}
+                {...listeners}
+                className="p-1 mt-0.5 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <GripVertical className="w-4 h-4" />
+              </button>
+              <div className="flex items-center gap-2 min-w-0">
+                {/* Initials avatar with hash-based color */}
+                <div className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white text-xs font-bold",
+                  getAvatarColor(customer.name)
+                )}>
+                  {customer.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-medium text-sm truncate">{customer.name}</p>
+                    {customer.tag && TAG_CONFIG[customer.tag] && (
+                      <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-medium inline-flex items-center gap-0.5", TAG_CONFIG[customer.tag].bg, TAG_CONFIG[customer.tag].color)}>
+                        <span>{TAG_CONFIG[customer.tag].icon}</span>
+                        {TAG_CONFIG[customer.tag].label}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                    {customer.phone && (
+                      <span className="flex items-center gap-1">
+                        <Phone className="w-3 h-3" />
+                        {customer.phone}
+                      </span>
+                    )}
+                    {customer.address && (
+                      <span className="flex items-center gap-1 truncate">
+                        <MapPin className="w-3 h-3" />
+                        {customer.address}
+                      </span>
+                    )}
+                    {customer.taxNumber && (
+                      <span className="flex items-center gap-1">
+                        VNo: {customer.taxNumber}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              {/* Star / Favorite toggle */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleFavorite.mutate({ id: customer.id, isFavorite: !customer.isFavorite })
+                }}
+                className={cn("p-1 rounded-md hover:bg-muted transition-colors", customer.isFavorite && "text-yellow-500")}
+              >
+                <Star className={cn("w-4 h-4", customer.isFavorite ? "fill-yellow-500" : "fill-none")} />
+              </button>
+              <Badge variant="secondary" className="text-[10px]">
+                {recordCount} kayıt
+              </Badge>
+              {expandedCustomer === customer.id ? (
+                <ChevronUp className="w-4 h-4 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              )}
+            </div>
+          </div>
+
+          {/* Expanded content with slide-in animation */}
+          <AnimatePresence>
+            {expandedCustomer === customer.id && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="overflow-hidden"
+              >
+                <div className="mt-3 pt-3 border-t space-y-2">
+                  {customer.notes && (
+                    <p className="text-xs text-muted-foreground italic">
+                      Not: {customer.notes}
+                    </p>
+                  )}
+                  <div className="flex gap-2">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="flex-1 gap-1"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedCustomerId(customer.id)
+                      }}
+                    >
+                      <Eye className="w-3 h-3" />
+                      Detay
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 gap-1"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedCustomer(customer.id)
+                        setPricingOpen(true)
+                      }}
+                    >
+                      <DollarSign className="w-3 h-3" />
+                      Fiyatlar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 gap-1"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedCustomer(customer.id)
+                        setEditOpen(true)
+                      }}
+                    >
+                      <Pencil className="w-3 h-3" />
+                      Düzenle
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="sm" className="text-destructive hover:text-destructive gap-1" onClick={(e) => e.stopPropagation()}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Müşteriyi Sil</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {customer.name} müşterisini silmek istediğinizden emin misiniz? Bu müşteriye ait tüm kayıtlar da silinecektir.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>İptal</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDeleteCustomer(customer.id)}>
+                            Sil
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </CardContent>
+      </Card>
     </div>
   )
 }

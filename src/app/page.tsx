@@ -28,6 +28,8 @@ const tabs: { id: TabType; label: string; icon: React.ElementType }[] = [
   { id: 'settings', label: 'Ayarlar', icon: SettingsIcon },
 ]
 
+const mobileTabs = tabs.filter(t => t.id !== 'settings')
+
 const tabComponents: Record<TabType, React.ComponentType> = {
   dashboard: Dashboard,
   'daily-entry': DailyEntry,
@@ -58,7 +60,20 @@ export default function HomePage() {
               <p className="text-[10px] text-primary-foreground/60 leading-tight font-medium uppercase tracking-widest">Yönetim Sistemi</p>
             </div>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={cn(
+                'md:hidden p-2 rounded-lg transition-colors',
+                activeTab === 'settings'
+                  ? 'bg-primary-foreground/30 text-primary-foreground'
+                  : 'text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10'
+              )}
+            >
+              <SettingsIcon className="w-5 h-5" />
+            </button>
+            <ThemeToggle />
+          </div>
         </div>
 
         {/* Desktop Navigation */}
@@ -132,7 +147,7 @@ export default function HomePage() {
         <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
         <div className="relative border-t border-border/50 shadow-lg">
           <div className="flex justify-around items-center">
-            {tabs.map((tab) => {
+            {mobileTabs.map((tab) => {
               const Icon = tab.icon
               const isActive = activeTab === tab.id
               return (

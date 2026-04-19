@@ -82,41 +82,73 @@ export function Settings() {
   const [resetConfirmText, setResetConfirmText] = useState('')
   const [companySaved, setCompanySaved] = useState(false)
   const [prefsSaved, setPrefsSaved] = useState(false)
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true)
 
-  // Load from localStorage on mount
+  // Load from Supabase on mount
   useEffect(() => {
-    try {
-      const savedCompany = localStorage.getItem('company-info')
-      if (savedCompany) {
-        setCompanyInfo(JSON.parse(savedCompany))
-      }
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (data && !data.error) {
+          setCompanyInfo({
+            name: data.companyName || defaultCompanyInfo.name,
+            address: data.companyAddress || defaultCompanyInfo.address,
+            phone: data.companyPhone || defaultCompanyInfo.phone,
+            taxNumber: data.companyTaxNumber || defaultCompanyInfo.taxNumber,
+          })
+          setPreferences({
+            kdvRate: data.kdvRate ?? defaultPreferences.kdvRate,
+            invoiceDueDays: data.invoiceDueDays ?? defaultPreferences.invoiceDueDays,
+            currencySymbol: data.currencySymbol || defaultPreferences.currencySymbol,
+          })
+        }
+      })
+      .catch(() => {})
+      .finally(() => setIsLoadingSettings(false))
 
-      const savedPrefs = localStorage.getItem('app-preferences')
-      if (savedPrefs) {
-        setPreferences(JSON.parse(savedPrefs))
-      }
-
-      const savedBackup = localStorage.getItem('last-backup-date')
-      if (savedBackup) {
-        setLastBackup(savedBackup)
-      }
-    } catch {
-      // Use defaults if localStorage is corrupted
-    }
+    const savedBackup = localStorage.getItem('last-backup-date')
+    if (savedBackup) setLastBackup(savedBackup)
   }, [])
 
-  const saveCompanyInfo = () => {
-    localStorage.setItem('company-info', JSON.stringify(companyInfo))
-    setCompanySaved(true)
-    toast.success('Firma bilgileri kaydedildi')
-    setTimeout(() => setCompanySaved(false), 2000)
+  const saveCompanyInfo = async () => {
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyName: companyInfo.name,
+          companyAddress: companyInfo.address,
+          companyPhone: companyInfo.phone,
+          companyTaxNumber: companyInfo.taxNumber,
+        }),
+      })
+      if (!res.ok) throw new Error()
+      setCompanySaved(true)
+      toast.success('Firma bilgileri kaydedildi')
+      setTimeout(() => setCompanySaved(false), 2000)
+    } catch {
+      toast.error('Firma bilgileri kaydedilirken hata oluştu')
+    }
   }
 
-  const savePreferences = () => {
-    localStorage.setItem('app-preferences', JSON.stringify(preferences))
-    setPrefsSaved(true)
-    toast.success('Uygulama tercihleri kaydedildi')
-    setTimeout(() => setPrefsSaved(false), 2000)
+  const savePreferences = async () => {
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kdvRate: preferences.kdvRate,
+          invoiceDueDays: preferences.invoiceDueDays,
+          currencySymbol: preferences.currencySymbol,
+        }),
+      })
+      if (!res.ok) throw new Error()
+      setPrefsSaved(true)
+      toast.success('Uygulama tercihleri kaydedildi')
+      setTimeout(() => setPrefsSaved(false), 2000)
+    } catch {
+      toast.error('Tercihler kaydedilirken hata oluştu')
+    }
   }
 
   const handleExportAll = async () => {

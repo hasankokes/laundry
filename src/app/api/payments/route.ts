@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { supabase, now } from '@/lib/supabase'
 
 // GET /api/payments - List all payments with optional filters
 export async function GET(request: NextRequest) {
@@ -9,23 +9,24 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
 
-    const where: any = {}
-    if (customerId) where.customerId = customerId
-    if (startDate || endDate) {
-      where.date = {}
-      if (startDate) where.date.gte = startDate
-      if (endDate) where.date.lte = endDate
-    }
+    let query = supabase
+      .from('Payment')
+      .select('*, customer:Customer(id, name, phone)')
+      .order('date', { ascending: false })
 
-    const payments = await db.payment.findMany({
-      where,
-      include: {
-        customer: {
-          select: { id: true, name: true, phone: true },
-        },
-      },
-      orderBy: { date: 'desc' },
-    })
+    if (customerId) query = query.eq('customerId', customerId)
+    if (startDate) query = query.gte('date', startDate)
+    if (endDate) query = query.lte('date', endDate)
+
+    const { data: payments, error } = await query
+
+    if (error) {
+      console.error('Error fetching payments:', error)
+      return NextResponse.json(
+        { error: 'Ödemeler yüklenirken hata oluştu' },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json(payments)
   } catch (error) {
@@ -65,28 +66,41 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify customer exists
-    const customer = await db.customer.findUnique({ where: { id: customerId } })
-    if (!customer) {
+    const { data: customer, error: customerError } = await supabase
+      .from('Customer')
+      .select('id, name, phone')
+      .eq('id', customerId)
+      .single()
+
+    if (customerError || !customer) {
       return NextResponse.json(
         { error: 'Müşteri bulunamadı' },
         { status: 404 }
       )
     }
 
-    const payment = await db.payment.create({
-      data: {
+    const { data: payment, error } = await supabase
+      .from('Payment')
+      .insert({
+        id: crypto.randomUUID(),
         customerId,
         amount: parseFloat(amount),
         date,
         method: method || 'nakit',
         description: description?.trim() || null,
-      },
-      include: {
-        customer: {
-          select: { id: true, name: true, phone: true },
-        },
-      },
-    })
+        createdAt: now(),
+        updatedAt: now(),
+      })
+      .select('*, customer:Customer(id, name, phone)')
+      .single()
+
+    if (error) {
+      console.error('Error creating payment:', error)
+      return NextResponse.json(
+        { error: 'Ödeme oluşturulurken hata oluştu' },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json(payment, { status: 201 })
   } catch (error) {

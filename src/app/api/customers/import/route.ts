@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { supabase, now } from '@/lib/supabase'
 import * as XLSX from 'xlsx'
 
 // Allowed tag values (Turkish)
@@ -16,7 +16,7 @@ const ALLOWED_TAGS = [
 
 type AllowedTag = (typeof ALLOWED_TAGS)[number]
 
-// Column mapping: Turkish Excel headers → Prisma Customer fields
+// Column mapping: Turkish Excel headers → Customer fields
 const COLUMN_MAP: Record<string, string> = {
   Ad: 'name',
   Telefon: 'phone',
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // --- 3. Map Turkish headers to Prisma fields ---
+    // --- 3. Map Turkish headers to fields ---
     const mappedRows = rows.map((row) => {
       const mapped: Record<string, unknown> = {}
       for (const [header, field] of Object.entries(COLUMN_MAP)) {
@@ -86,16 +86,25 @@ export async function POST(request: NextRequest) {
     })
 
     // --- 4. Fetch existing customers for duplicate check ---
-    const existingCustomers = await db.customer.findMany({
-      select: { name: true },
-    })
+    const { data: existingCustomers, error: fetchError } = await supabase
+      .from('Customer')
+      .select('name')
+
+    if (fetchError) {
+      console.error('Error fetching existing customers:', fetchError)
+      return NextResponse.json(
+        { error: 'Müşteri içe aktarılırken hata oluştu' },
+        { status: 500 }
+      )
+    }
+
     const existingNameSet = new Set(
-      existingCustomers.map((c) => c.name.toLowerCase().trim())
+      (existingCustomers ?? []).map((c: any) => c.name.toLowerCase().trim())
     )
 
     // --- 5. Validate rows ---
     const errors: ImportError[] = []
-    const validRows: { name: string; phone: string | null; address: string | null; tag: string | null; notes: string | null }[] = []
+    const validRows: { id: string; name: string; phone: string | null; address: string | null; tag: string | null; notes: string | null }[] = []
     let skipped = 0
 
     for (let i = 0; i < mappedRows.length; i++) {
@@ -163,8 +172,8 @@ export async function POST(request: NextRequest) {
         ? String(rawNotes).trim()
         : null
 
-      // Add to valid rows and track name for intra-batch duplicate check
-      validRows.push({ name, phone, address, tag, notes })
+      // Add to valid rows with generated ID and track name for intra-batch duplicate check
+      validRows.push({ id: crypto.randomUUID(), name, phone, address, tag, notes })
       existingNameSet.add(name.toLowerCase()) // Prevent duplicates within the same batch
     }
 
@@ -172,16 +181,28 @@ export async function POST(request: NextRequest) {
     let imported = 0
 
     if (validRows.length > 0) {
-      const result = await db.customer.createMany({
-        data: validRows.map((row) => ({
+      const { error: insertError } = await supabase
+        .from('Customer')
+        .insert(validRows.map((row) => ({
+          id: row.id,
           name: row.name,
           phone: row.phone,
           address: row.address,
           tag: row.tag,
           notes: row.notes,
-        })),
-      })
-      imported = result.count
+          createdAt: now(),
+          updatedAt: now(),
+        })))
+
+      if (insertError) {
+        console.error('Error inserting customers:', insertError)
+        return NextResponse.json(
+          { error: 'Müşteri içe aktarılırken hata oluştu' },
+          { status: 500 }
+        )
+      }
+
+      imported = validRows.length
     }
 
     // --- 7. Return result ---

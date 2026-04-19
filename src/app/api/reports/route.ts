@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { Prisma } from '@prisma/client'
+import { supabase } from '@/lib/supabase'
 
 // GET /api/reports - Date range summary report
 export async function GET(request: NextRequest) {
@@ -17,26 +16,25 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const where: Prisma.DailyRecordWhereInput = {
-      date: {
-        gte: startDate,
-        lte: endDate,
-      },
-    }
+    // Build query with filters
+    let query = supabase
+      .from('DailyRecord')
+      .select('*, customer:Customer(id, name), service:Service(id, name, unit)')
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date', { ascending: true })
 
-    if (customerId) {
-      where.customerId = customerId
-    }
+    if (customerId) query = query.eq('customerId', customerId)
 
-    // Fetch all records in the date range
-    const records = await db.dailyRecord.findMany({
-      where,
-      include: {
-        customer: { select: { id: true, name: true } },
-        service: { select: { id: true, name: true, unit: true } },
-      },
-      orderBy: { date: 'asc' },
-    })
+    const { data: records, error } = await query
+
+    if (error) {
+      console.error('Error generating report:', error)
+      return NextResponse.json(
+        { error: 'Rapor oluşturulurken hata oluştu' },
+        { status: 500 }
+      )
+    }
 
     // Aggregate by service
     const byService: Record<string, {
@@ -71,9 +69,9 @@ export async function GET(request: NextRequest) {
 
     let totalRevenue = 0
     let totalQuantity = 0
-    let totalRecordCount = records.length
+    let totalRecordCount = records ? records.length : 0
 
-    for (const record of records) {
+    for (const record of records ?? []) {
       totalRevenue += record.total
       totalQuantity += record.quantity
 

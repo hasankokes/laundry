@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { supabase } from '@/lib/supabase'
 import crypto from 'crypto'
 
 // GET /api/invoice - Generate invoice for a customer in a date range
@@ -39,17 +39,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch customer details
-    const customer = await db.customer.findUnique({
-      where: { id: customerId },
-      select: {
-        id: true,
-        name: true,
-        phone: true,
-        address: true,
-      },
-    })
+    const { data: customer, error: customerError } = await supabase
+      .from('Customer')
+      .select('id, name, phone, address')
+      .eq('id', customerId)
+      .single()
 
-    if (!customer) {
+    if (customerError || !customer) {
       return NextResponse.json(
         { error: 'Müşteri bulunamadı' },
         { status: 404 }
@@ -57,27 +53,23 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch all daily records for this customer in the date range
-    const records = await db.dailyRecord.findMany({
-      where: {
-        customerId,
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-      include: {
-        service: {
-          select: {
-            id: true,
-            name: true,
-            unit: true,
-          },
-        },
-      },
-      orderBy: { date: 'asc' },
-    })
+    const { data: records, error: recordsError } = await supabase
+      .from('DailyRecord')
+      .select('*, service:Service(id, name, unit)')
+      .eq('customerId', customerId)
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date', { ascending: true })
 
-    if (records.length === 0) {
+    if (recordsError) {
+      console.error('Error fetching records for invoice:', recordsError)
+      return NextResponse.json(
+        { error: 'Fatura oluşturulurken hata oluştu' },
+        { status: 500 }
+      )
+    }
+
+    if (!records || records.length === 0) {
       return NextResponse.json(
         { error: 'Bu tarih aralığında kayıt bulunamadı' },
         { status: 404 }

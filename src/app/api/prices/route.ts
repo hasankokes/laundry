@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { Prisma } from '@prisma/client'
+import { supabase, now } from '@/lib/supabase'
 
 // GET /api/prices - List prices with optional filter
 export async function GET(request: NextRequest) {
@@ -8,22 +7,32 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const customerId = searchParams.get('customerId')
 
-    const where: Prisma.CustomerPriceWhereInput = {}
+    let query = supabase
+      .from('CustomerPrice')
+      .select('*, customer:Customer(id, name), service:Service(id, name, unit, defaultPrice)')
 
     if (customerId) {
-      where.customerId = customerId
+      query = query.eq('customerId', customerId)
     }
 
-    const prices = await db.customerPrice.findMany({
-      where,
-      orderBy: [{ customer: { name: 'asc' } }, { service: { name: 'asc' } }],
-      include: {
-        customer: { select: { id: true, name: true } },
-        service: { select: { id: true, name: true, unit: true, defaultPrice: true } },
-      },
+    const { data: prices, error } = await query
+
+    if (error) {
+      console.error('Error fetching prices:', error)
+      return NextResponse.json(
+        { error: 'Fiyatlar yüklenirken hata oluştu' },
+        { status: 500 }
+      )
+    }
+
+    // Sort by customer name, then service name (replacing Prisma orderBy with relations)
+    const sorted = (prices ?? []).sort((a: Record<string, any>, b: Record<string, any>) => {
+      const customerCompare = (a.customer?.name ?? '').localeCompare(b.customer?.name ?? '')
+      if (customerCompare !== 0) return customerCompare
+      return (a.service?.name ?? '').localeCompare(b.service?.name ?? '')
     })
 
-    return NextResponse.json(prices)
+    return NextResponse.json(sorted)
   } catch (error) {
     console.error('Error fetching prices:', error)
     return NextResponse.json(
@@ -59,17 +68,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Upsert: create or update the customer-specific price
-    const customerPrice = await db.customerPrice.upsert({
-      where: {
-        customerId_serviceId: { customerId, serviceId },
-      },
-      update: { price },
-      create: { customerId, serviceId, price },
-      include: {
-        customer: { select: { id: true, name: true } },
-        service: { select: { id: true, name: true, unit: true, defaultPrice: true } },
-      },
-    })
+    const { data: customerPrice, error } = await supabase
+      .from('CustomerPrice')
+      .upsert(
+        { id: crypto.randomUUID(), customerId, serviceId, price, createdAt: now(), updatedAt: now() },
+        { onConflict: 'customerId,serviceId' }
+      )
+      .select('*, customer:Customer(id, name), service:Service(id, name, unit, defaultPrice)')
+      .single()
+
+    if (error) {
+      console.error('Error creating/updating price:', error)
+      return NextResponse.json(
+        { error: 'Fiyat kaydedilirken hata oluştu' },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json(customerPrice, { status: 201 })
   } catch (error) {

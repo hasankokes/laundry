@@ -228,6 +228,11 @@ export function CustomerDetail({ customerId, onBack, onEditCustomer, onSetPrices
                   {customer.address}
                 </span>
               )}
+              {customer.taxNumber && (
+                <span className="flex items-center gap-1">
+                  VNo: {customer.taxNumber}
+                </span>
+              )}
             </div>
           </div>
         </div>

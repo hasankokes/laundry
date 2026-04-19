@@ -1,14 +1,27 @@
-import { db } from '@/lib/db'
+import { supabase } from '@/lib/supabase'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    const [customers, services, customerPrices, dailyRecords] = await Promise.all([
-      db.customer.findMany({ orderBy: { createdAt: 'asc' } }),
-      db.service.findMany({ orderBy: { createdAt: 'asc' } }),
-      db.customerPrice.findMany({ orderBy: { createdAt: 'asc' } }),
-      db.dailyRecord.findMany({ orderBy: { date: 'desc' } }),
+    const [
+      { data: customers, error: customersError },
+      { data: services, error: servicesError },
+      { data: customerPrices, error: customerPricesError },
+      { data: dailyRecords, error: dailyRecordsError },
+    ] = await Promise.all([
+      supabase.from('Customer').select('*').order('createdAt', { ascending: true }),
+      supabase.from('Service').select('*').order('createdAt', { ascending: true }),
+      supabase.from('CustomerPrice').select('*').order('createdAt', { ascending: true }),
+      supabase.from('DailyRecord').select('*').order('date', { ascending: false }),
     ])
+
+    if (customersError || servicesError || customerPricesError || dailyRecordsError) {
+      console.error('Export error:', customersError || servicesError || customerPricesError || dailyRecordsError)
+      return NextResponse.json(
+        { error: 'Veri dışa aktarılırken hata oluştu' },
+        { status: 500 }
+      )
+    }
 
     const exportData = {
       metadata: {

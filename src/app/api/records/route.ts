@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { Prisma } from '@prisma/client'
+import { supabase, now } from '@/lib/supabase'
 
 // GET /api/records - List records with filters
 export async function GET(request: NextRequest) {
@@ -11,32 +10,32 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
 
-    const where: Prisma.DailyRecordWhereInput = {}
+    let query = supabase
+      .from('DailyRecord')
+      .select('*, customer:Customer(id, name, phone), service:Service(id, name, unit)')
 
     if (customerId) {
-      where.customerId = customerId
+      query = query.eq('customerId', customerId)
     }
 
     if (date) {
-      where.date = date
+      query = query.eq('date', date)
     } else if (startDate || endDate) {
-      where.date = {}
-      if (startDate) {
-        (where.date as Prisma.StringFilter)['gte'] = startDate
-      }
-      if (endDate) {
-        (where.date as Prisma.StringFilter)['lte'] = endDate
-      }
+      if (startDate) query = query.gte('date', startDate)
+      if (endDate) query = query.lte('date', endDate)
     }
 
-    const records = await db.dailyRecord.findMany({
-      where,
-      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-      include: {
-        customer: { select: { id: true, name: true, phone: true } },
-        service: { select: { id: true, name: true, unit: true } },
-      },
-    })
+    query = query.order('date', { ascending: false }).order('createdAt', { ascending: false })
+
+    const { data: records, error } = await query
+
+    if (error) {
+      console.error('Error fetching records:', error)
+      return NextResponse.json(
+        { error: 'Kayıtlar yüklenirken hata oluştu' },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json(records)
   } catch (error) {
@@ -77,8 +76,10 @@ export async function POST(request: NextRequest) {
     const price = typeof unitPrice === 'number' && unitPrice >= 0 ? unitPrice : 0
     const total = qty * price
 
-    const record = await db.dailyRecord.create({
-      data: {
+    const { data: record, error } = await supabase
+      .from('DailyRecord')
+      .insert({
+        id: crypto.randomUUID(),
         customerId,
         serviceId,
         date,
@@ -86,12 +87,19 @@ export async function POST(request: NextRequest) {
         unitPrice: price,
         total,
         notes: notes?.trim() || null,
-      },
-      include: {
-        customer: { select: { id: true, name: true, phone: true } },
-        service: { select: { id: true, name: true, unit: true } },
-      },
-    })
+        createdAt: now(),
+        updatedAt: now(),
+      })
+      .select('*, customer:Customer(id, name, phone), service:Service(id, name, unit)')
+      .single()
+
+    if (error) {
+      console.error('Error creating record:', error)
+      return NextResponse.json(
+        { error: 'Kayıt oluşturulurken hata oluştu' },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json(record, { status: 201 })
   } catch (error) {

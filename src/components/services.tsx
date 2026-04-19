@@ -7,7 +7,12 @@ import {
   useUpdateService,
   useDeleteService,
   useRecords,
+  useToggleServiceFavorite,
+  useReorderServices,
 } from '@/hooks/use-api'
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -46,9 +51,12 @@ import {
   Search,
   TrendingUp,
   DollarSign,
+  Star,
+  GripVertical,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
+import { cn } from '@/lib/utils'
 
 const unitOptions = [
   { value: 'adet', label: 'Adet' },
@@ -71,6 +79,46 @@ const SERVICE_GRADIENTS = [
 
 const SERVICE_ICONS = ['🧺', '🧹', '👔', '🛏️', '🏠', '✨', '🧽', '💫']
 
+const SERVICE_ICON_MAP: Record<string, string> = {
+  'çarşaf': '🛏️',
+  'nevresim': '🛏️',
+  'yastık kılıfı': '🧸',
+  'yastık': '🧸',
+  'büyük havlu': '🛁',
+  'küçük havlu': '🛁',
+  'el havlusu': '🛁',
+  'ayak havlusu': '🛁',
+  'traş havlusu': '🛁',
+  'havlu': '🛁',
+  'bornoz': '🧥',
+  'peştemal': '🧖',
+  'pike': '🛏️',
+  'alez': '🛏️',
+  'yorgan': '🛏️',
+  'masa örtüsü': '🍽️',
+  'perde': '🪟',
+  'kapak': '🛏️',
+  'bebek çarşafı': '👶',
+  'bebek nevresimi': '👶',
+  'peçete': '🍽️',
+  'pede': '🛏️',
+  'kılım': '🧺',
+  'runner': '🍽️',
+  'kilim': '🧹',
+  'yıkama': '🧺',
+  'kuru temizleme': '👔',
+  'ütüleme': '👔',
+  'halı': '🧹',
+}
+
+function getServiceIcon(name: string, index: number): string {
+  const key = name.toLowerCase().trim()
+  for (const [k, v] of Object.entries(SERVICE_ICON_MAP)) {
+    if (key.includes(k)) return v
+  }
+  return SERVICE_ICONS[index % SERVICE_ICONS.length]
+}
+
 export function Services() {
   const [addOpen, setAddOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
@@ -82,6 +130,13 @@ export function Services() {
   const createService = useCreateService()
   const updateService = useUpdateService()
   const deleteService = useDeleteService()
+  const toggleFavorite = useToggleServiceFavorite()
+  const reorderMutation = useReorderServices()
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
 
   const filteredServices = searchQuery
     ? services?.filter(s =>
@@ -145,6 +200,21 @@ export function Services() {
   }
 
   const selectedServiceData = services?.find(s => s.id === selectedService)
+
+  const handleDragEnd = (event: any) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = filteredServices!.findIndex((s: any) => s.id === active.id)
+    const newIndex = filteredServices!.findIndex((s: any) => s.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const reordered = [...filteredServices!]
+    const [moved] = reordered.splice(oldIndex, 1)
+    reordered.splice(newIndex, 0, moved)
+
+    reorderMutation.mutate(reordered.map((s: any, i: number) => ({ id: s.id, displayOrder: i, isFavorite: s.isFavorite })))
+  }
 
   // Get total records across all services
   const totalRecords = services?.reduce((sum, s) => sum + (s._count?.records ?? 0), 0) ?? 0
@@ -224,109 +294,15 @@ export function Services() {
             <Skeleton key={i} className="h-24 w-full rounded-xl" />
           ))
         ) : filteredServices && filteredServices.length > 0 ? (
-          <AnimatePresence>
-            {filteredServices.map((service, index) => {
-              const recordCount = service._count?.records ?? 0
-              const recordPercent = totalRecords > 0 ? (recordCount / totalRecords) * 100 : 0
-              const gradient = SERVICE_GRADIENTS[index % SERVICE_GRADIENTS.length]
-              const icon = SERVICE_ICONS[index % SERVICE_ICONS.length]
-
-              // Calculate total revenue for this service from records
-              const serviceRevenue = records?.filter(r => r.serviceId === service.id).reduce((sum, r) => sum + r.total, 0) ?? 0
-
-              return (
-                <motion.Card
-                  key={service.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ delay: index * 0.03 }}
-                  className="overflow-hidden hover:shadow-md transition-all group"
-                >
-                  <CardContent className="p-0">
-                    <div className="flex">
-                      {/* Color Accent */}
-                      <div className={`w-2 bg-gradient-to-b ${gradient} shrink-0`} />
-
-                      <div className="flex-1 p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center shrink-0 shadow-sm`}>
-                              <span className="text-lg">{icon}</span>
-                            </div>
-                            <div className="min-w-0">
-                              <p className="font-semibold text-sm">{service.name}</p>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <Badge variant="outline" className="text-[10px] h-5">
-                                  {service.unit}
-                                </Badge>
-                                <span className="text-xs font-semibold text-primary group-hover:text-primary/80 transition-colors">
-                                  ₺{service.defaultPrice.toFixed(2)} / {service.unit}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {/* Revenue indicator */}
-                            {serviceRevenue > 0 && (
-                              <div className="text-right hidden sm:block">
-                                <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                                  <DollarSign className="w-3 h-3" />
-                                  <span className="text-xs font-bold">₺{serviceRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}</span>
-                                </div>
-                              </div>
-                            )}
-                            {/* Record count with progress */}
-                            <div className="text-right mr-1 hidden sm:block">
-                              <p className="text-xs font-medium">{recordCount} kayıt</p>
-                              <div className="w-16 h-1 bg-muted rounded-full overflow-hidden mt-1">
-                                <div
-                                  className={`h-full bg-gradient-to-r ${gradient} rounded-full`}
-                                  style={{ width: `${Math.max(recordPercent, 2)}%` }}
-                                />
-                              </div>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => {
-                                setSelectedService(service.id)
-                                setEditOpen(true)
-                              }}
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </Button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Hizmeti Sil</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    {service.name} hizmetini silmek istediğinizden emin misiniz? Bu hizmete ait tüm kayıtlar da silinecektir.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>İptal</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDeleteService(service.id)}>
-                                    Sil
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </motion.Card>
-              )
-            })}
-          </AnimatePresence>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={filteredServices.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+              <AnimatePresence>
+                {filteredServices.map((service, index) => (
+                  <SortableServiceCard key={service.id} service={service} index={index} totalRecords={totalRecords} records={records} setSelectedService={setSelectedService} setEditOpen={setEditOpen} handleDeleteService={handleDeleteService} toggleFavorite={toggleFavorite} />
+                ))}
+              </AnimatePresence>
+            </SortableContext>
+          </DndContext>
         ) : (
           <Card>
             <CardContent className="p-8 text-center">
@@ -390,6 +366,129 @@ export function Services() {
           </form>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+function SortableServiceCard({ service, index, totalRecords, records, setSelectedService, setEditOpen, handleDeleteService, toggleFavorite }: any) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: service.id })
+  const style = { transform: CSS.Transform.toString(transform), transition }
+
+  const recordCount = service._count?.records ?? 0
+  const recordPercent = totalRecords > 0 ? (recordCount / totalRecords) * 100 : 0
+  const gradient = SERVICE_GRADIENTS[index % SERVICE_GRADIENTS.length]
+  const icon = getServiceIcon(service.name, index)
+  const serviceRevenue = records?.filter((r: any) => r.serviceId === service.id).reduce((sum: number, r: any) => sum + r.total, 0) ?? 0
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ delay: index * 0.03 }}
+        className="overflow-hidden hover:shadow-md transition-all group"
+      >
+        <CardContent className="p-0">
+          <div className="flex">
+            {/* Drag handle */}
+            <button
+              {...attributes}
+              {...listeners}
+              className="flex items-center justify-center w-8 shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+            >
+              <GripVertical className="w-4 h-4" />
+            </button>
+
+            {/* Color Accent */}
+            <div className={`w-2 bg-gradient-to-b ${gradient} shrink-0`} />
+
+            <div className="flex-1 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center shrink-0 shadow-sm`}>
+                    <span className="text-lg">{icon}</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm">{service.name}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <Badge variant="outline" className="text-[10px] h-5">
+                        {service.unit}
+                      </Badge>
+                      <span className="text-xs font-semibold text-primary group-hover:text-primary/80 transition-colors">
+                        ₺{service.defaultPrice.toFixed(2)} / {service.unit}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Star / Favorite toggle */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleFavorite.mutate({ id: service.id, isFavorite: !service.isFavorite })
+                    }}
+                    className={cn("p-1 rounded-md hover:bg-muted transition-colors", service.isFavorite && "text-yellow-500")}
+                  >
+                    <Star className={cn("w-4 h-4", service.isFavorite ? "fill-yellow-500" : "fill-none")} />
+                  </button>
+                  {/* Revenue indicator */}
+                  {serviceRevenue > 0 && (
+                    <div className="text-right hidden sm:block">
+                      <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                        <DollarSign className="w-3 h-3" />
+                        <span className="text-xs font-bold">₺{serviceRevenue.toLocaleString('tr-TR', { minimumFractionDigits: 0 })}</span>
+                      </div>
+                    </div>
+                  )}
+                  {/* Record count with progress */}
+                  <div className="text-right mr-1 hidden sm:block">
+                    <p className="text-xs font-medium">{recordCount} kayıt</p>
+                    <div className="w-16 h-1 bg-muted rounded-full overflow-hidden mt-1">
+                      <div
+                        className={`h-full bg-gradient-to-r ${gradient} rounded-full`}
+                        style={{ width: `${Math.max(recordPercent, 2)}%` }}
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => {
+                      setSelectedService(service.id)
+                      setEditOpen(true)
+                    }}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Hizmeti Sil</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {service.name} hizmetini silmek istediğinizden emin misiniz? Bu hizmete ait tüm kayıtlar da silinecektir.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>İptal</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleDeleteService(service.id)}>
+                          Sil
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </motion.div>
     </div>
   )
 }
