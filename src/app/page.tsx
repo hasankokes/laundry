@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { useAppStore, TabType } from '@/lib/store'
 import { Dashboard } from '@/components/dashboard'
 import { DailyEntry } from '@/components/daily-entry'
@@ -8,6 +9,8 @@ import { Services } from '@/components/services'
 import { Reports } from '@/components/reports'
 import { Settings } from '@/components/settings'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import {
   Home,
   PlusCircle,
@@ -15,9 +18,13 @@ import {
   Shirt,
   FileText,
   Settings as SettingsIcon,
+  Lock,
+  ShieldCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
+
+const APP_PIN = '4949'
 
 const tabs: { id: TabType; label: string; icon: React.ElementType }[] = [
   { id: 'dashboard', label: 'Ana Sayfa', icon: Home },
@@ -42,6 +49,73 @@ const tabComponents: Record<TabType, React.ComponentType> = {
 export default function HomePage() {
   const { activeTab, setActiveTab } = useAppStore()
   const ActiveComponent = tabComponents[activeTab]
+  const [pinInput, setPinInput] = useState('')
+  const [isUnlocked, setIsUnlocked] = useState(false)
+  const [pinError, setPinError] = useState(false)
+
+  useEffect(() => {
+    if (sessionStorage.getItem('app-unlocked') === 'true') {
+      setIsUnlocked(true)
+    }
+  }, [])
+
+  const handlePinSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (pinInput === APP_PIN) {
+      setIsUnlocked(true)
+      sessionStorage.setItem('app-unlocked', 'true')
+      setPinError(false)
+    } else {
+      setPinError(true)
+      setPinInput('')
+    }
+  }
+
+  if (!isUnlocked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary via-primary to-teal-600 p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.4 }}
+          className="w-full max-w-xs"
+        >
+          <div className="bg-card rounded-2xl shadow-2xl p-8 text-center">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <Lock className="w-8 h-8 text-primary" />
+            </div>
+            <h1 className="text-xl font-bold mb-1">Çamaşırhane</h1>
+            <p className="text-sm text-muted-foreground mb-6">Giriş kodunu girin</p>
+            <form onSubmit={handlePinSubmit} className="space-y-4">
+              <Input
+                type="password"
+                inputMode="numeric"
+                maxLength={10}
+                value={pinInput}
+                onChange={(e) => { setPinInput(e.target.value); setPinError(false) }}
+                placeholder="••••"
+                className="text-center text-2xl tracking-[0.5em] h-14"
+                autoFocus
+              />
+              {pinError && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-sm text-destructive font-medium"
+                >
+                  Hatalı kod
+                </motion.p>
+              )}
+              <Button type="submit" className="w-full h-12 gap-2">
+                <ShieldCheck className="w-5 h-5" />
+                Giriş
+              </Button>
+            </form>
+          </div>
+        </motion.div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
