@@ -510,35 +510,99 @@ export function InvoiceDialog({
     const invoiceEl = document.querySelector('.invoice-print')
     if (!invoiceEl) return
 
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) return
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.right = '0'
+    iframe.style.bottom = '0'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = '0'
+    document.body.appendChild(iframe)
 
-    // Collect all stylesheets from current page
-    const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-      .map(el => el.outerHTML)
-      .join('\n')
-
-    printWindow.document.write(`<!DOCTYPE html>
+    const doc = iframe.contentDocument!
+    doc.open()
+    doc.write(`<!DOCTYPE html>
 <html>
 <head>
-  ${styles}
   <style>
-    @media print { @page { size: A4; margin: 10mm; } }
-    body { margin: 0; padding: 20px; background: white; }
-    table { border-collapse: collapse; width: 100%; }
-    table th, table td { border: 1px solid #ddd; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111; background: #fff; padding: 24px; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+    th { font-weight: 600; border-bottom: 2px solid #111; }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+    .font-bold { font-weight: 700; }
+    .font-semibold { font-weight: 600; }
+    .font-medium { font-weight: 500; }
+    .text-xs { font-size: 11px; }
+    .text-sm { font-size: 13px; }
+    .text-base { font-size: 15px; }
+    .text-lg { font-size: 17px; }
+    .text-xl { font-size: 19px; }
+    .text-2xl { font-size: 22px; }
+    .text-gray-900 { color: #111; }
+    .text-gray-800 { color: #1f2937; }
+    .text-gray-700 { color: #374151; }
+    .text-gray-600 { color: #4b5563; }
+    .text-gray-500 { color: #6b7280; }
+    .text-gray-400 { color: #9ca3af; }
+    .text-gray-300 { color: #d1d5db; }
+    .border-b-2 { border-bottom: 2px solid; }
+    .border-gray-800 { border-color: #1f2937; }
+    .border-gray-300 { border-color: #d1d5db; }
+    .border-gray-200 { border-color: #e5e7eb; }
+    .border-t-2 { border-top: 2px solid; }
+    .border-t { border-top: 1px solid; }
+    .mb-6 { margin-bottom: 24px; }
+    .mb-4 { margin-bottom: 16px; }
+    .mb-3 { margin-bottom: 12px; }
+    .mb-2 { margin-bottom: 8px; }
+    .mb-1 { margin-bottom: 4px; }
+    .mt-1 { margin-top: 4px; }
+    .mt-0\\.5 { margin-top: 2px; }
+    .py-1 { padding-top: 4px; padding-bottom: 4px; }
+    .py-2 { padding-top: 8px; padding-bottom: 8px; }
+    .py-1\\.5 { padding-top: 6px; padding-bottom: 6px; }
+    .px-2 { padding-left: 8px; padding-right: 8px; }
+    .pb-4 { padding-bottom: 16px; }
+    .p-3 { padding: 12px; }
+    .p-4 { padding: 16px; }
+    .p-6 { padding: 24px; }
+    .rounded { border-radius: 4px; }
+    .flex { display: flex; }
+    .justify-between { justify-content: space-between; }
+    .justify-end { justify-content: flex-end; }
+    .items-start { align-items: flex-start; }
+    .gap-3 { gap: 12px; }
+    .w-64 { width: 256px; }
+    .w-8 { width: 32px; }
+    .w-14 { width: 56px; }
+    .w-24 { width: 96px; }
+    .uppercase { text-transform: uppercase; }
+    .tracking-wide { letter-spacing: 0.025em; }
+    .tracking-wider { letter-spacing: 0.05em; }
+    .space-y-0\\.5 > * + * { margin-top: 2px; }
+    .grid { display: grid; }
+    .grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+    .gap-3 { gap: 12px; }
+    .border { border: 1px solid; }
+    .border-gray-300 { border-color: #d1d5db; }
+    .bg-white { background: #fff; }
+    @page { size: A4; margin: 10mm; }
   </style>
 </head>
 <body>
-  ${invoiceEl.outerHTML}
+  ${invoiceEl.innerHTML}
 </body>
 </html>`)
+    doc.close()
 
-    printWindow.document.close()
-    printWindow.onload = () => {
-      printWindow.print()
-      printWindow.close()
-    }
+    setTimeout(() => {
+      iframe.contentWindow!.focus()
+      iframe.contentWindow!.print()
+      document.body.removeChild(iframe)
+    }, 300)
   }
 
   const handleWhatsApp = () => {
