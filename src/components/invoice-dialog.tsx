@@ -576,7 +576,7 @@ export function InvoiceDialog({
       @page { size: A4; margin: 10mm; }
     `
 
-    const html = `<!DOCTYPE html><html><head><style>${printStyles}</style></head><body>${invoiceEl.innerHTML}</body></html>`
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${printStyles}</style></head><body>${invoiceEl.innerHTML}</body></html>`
 
     // Desktop: use hidden iframe
     const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
