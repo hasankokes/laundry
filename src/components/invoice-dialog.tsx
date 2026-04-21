@@ -510,6 +510,11 @@ export function InvoiceDialog({
     const invoiceEl = document.querySelector('.invoice-print')
     if (!invoiceEl) return
 
+    // Build filename from invoice data
+    const fileName = invoice
+      ? `Fatura - ${invoice.customer.name} - ${startDate}_${endDate}`
+      : 'Fatura'
+
     const printStyles = `
       * { margin: 0; padding: 0; box-sizing: border-box; }
       body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111; background: #fff; padding: 24px; font-size: 13px; }
@@ -539,30 +544,19 @@ export function InvoiceDialog({
       @page { size: A4; margin: 10mm; }
     `
 
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${printStyles}</style></head><body>${invoiceEl.innerHTML}</body></html>`
-    const blob = new Blob([html], { type: 'text/html' })
-    const newWindow = window.open('', '_blank')
+    const iframe = document.createElement('iframe')
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;'
+    document.body.appendChild(iframe)
 
-    if (newWindow) {
-      newWindow.document.open()
-      newWindow.document.write(html)
-      newWindow.document.close()
-      setTimeout(() => {
-        try { newWindow.print() } catch {}
-      }, 500)
-    } else {
-      const iframe = document.createElement('iframe')
-      iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;'
-      document.body.appendChild(iframe)
-      const doc = iframe.contentDocument!
-      doc.open()
-      doc.write(html)
-      doc.close()
-      setTimeout(() => {
-        try { iframe.contentWindow!.print() } catch {}
-        document.body.removeChild(iframe)
-      }, 500)
-    }
+    const doc = iframe.contentDocument!
+    doc.open()
+    doc.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${fileName}</title><style>${printStyles}</style></head><body>${invoiceEl.innerHTML}</body></html>`)
+    doc.close()
+
+    setTimeout(() => {
+      try { iframe.contentWindow!.print() } catch {}
+      document.body.removeChild(iframe)
+    }, 500)
   }
 
   const handleWhatsApp = () => {
