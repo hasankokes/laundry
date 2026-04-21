@@ -510,13 +510,7 @@ export function InvoiceDialog({
     const invoiceEl = document.querySelector('.invoice-print')
     if (!invoiceEl) return
 
-    const iframe = document.createElement('iframe')
-    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;'
-    document.body.appendChild(iframe)
-
-    const doc = iframe.contentDocument!
-    doc.open()
-    doc.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    const printStyles = `
       * { margin: 0; padding: 0; box-sizing: border-box; }
       body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111; background: #fff; padding: 24px; font-size: 13px; }
       table { width: 100%; border-collapse: collapse; }
@@ -543,13 +537,27 @@ export function InvoiceDialog({
       .grid { display: grid; } .grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
       .border { border: 1px solid; } .rounded { border-radius: 4px; } .bg-white { background: #fff; }
       @page { size: A4; margin: 10mm; }
-    </style></head><body>${invoiceEl.innerHTML}</body></html>`)
-    doc.close()
+    `
 
-    setTimeout(() => {
-      try { iframe.contentWindow!.print() } catch {}
-      document.body.removeChild(iframe)
-    }, 500)
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${printStyles}</style></head><body>${invoiceEl.innerHTML}</body></html>`
+    const blob = new Blob([html], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const newWindow = window.open(url, '_blank')
+
+    // Fallback: if popup blocked, try iframe print
+    if (!newWindow) {
+      const iframe = document.createElement('iframe')
+      iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;'
+      document.body.appendChild(iframe)
+      const doc = iframe.contentDocument!
+      doc.open()
+      doc.write(html)
+      doc.close()
+      setTimeout(() => {
+        try { iframe.contentWindow!.print() } catch {}
+        document.body.removeChild(iframe)
+      }, 500)
+    }
   }
 
   const handleWhatsApp = () => {
