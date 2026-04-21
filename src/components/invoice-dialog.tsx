@@ -544,19 +544,17 @@ export function InvoiceDialog({
       @page { size: A4; margin: 10mm; }
     `
 
-    const iframe = document.createElement('iframe')
-    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;'
-    document.body.appendChild(iframe)
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${fileName}</title><style>${printStyles}</style></head><body>${invoiceEl.innerHTML}</body></html>`
 
-    const doc = iframe.contentDocument!
-    doc.open()
-    doc.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${fileName}</title><style>${printStyles}</style></head><body>${invoiceEl.innerHTML}</body></html>`)
-    doc.close()
-
-    setTimeout(() => {
-      try { iframe.contentWindow!.print() } catch {}
-      document.body.removeChild(iframe)
-    }, 500)
+    const newWindow = window.open('', '_blank')
+    if (newWindow) {
+      newWindow.document.open()
+      newWindow.document.write(html)
+      newWindow.document.close()
+      setTimeout(() => {
+        try { newWindow.print() } catch {}
+      }, 500)
+    }
   }
 
   const handleWhatsApp = () => {
