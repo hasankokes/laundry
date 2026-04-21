@@ -541,11 +541,16 @@ export function InvoiceDialog({
 
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${printStyles}</style></head><body>${invoiceEl.innerHTML}</body></html>`
     const blob = new Blob([html], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
-    const newWindow = window.open(url, '_blank')
+    const newWindow = window.open('', '_blank')
 
-    // Fallback: if popup blocked, try iframe print
-    if (!newWindow) {
+    if (newWindow) {
+      newWindow.document.open()
+      newWindow.document.write(html)
+      newWindow.document.close()
+      setTimeout(() => {
+        try { newWindow.print() } catch {}
+      }, 500)
+    } else {
       const iframe = document.createElement('iframe')
       iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;'
       document.body.appendChild(iframe)
