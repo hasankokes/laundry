@@ -29,7 +29,6 @@ import {
   TrendingUp,
   Users,
   CalendarDays,
-  Printer,
   Download,
   Receipt,
   Target,
@@ -144,8 +143,6 @@ export function Reports() {
     setStartDate(thirtyDaysAgo.toISOString().split('T')[0])
     setEndDate(now.toISOString().split('T')[0])
   }
-
-  const handlePrint = () => { window.print() }
 
   const handleExportCSV = () => {
     if (!report) return
@@ -330,10 +327,6 @@ export function Reports() {
             <Button variant="outline" className="flex-1 gap-2" onClick={handleExportCSV}>
               <Download className="w-4 h-4" />
               CSV
-            </Button>
-            <Button variant="outline" className="flex-1 gap-2" onClick={handlePrint}>
-              <Printer className="w-4 h-4" />
-              Yazdır
             </Button>
             <Button
               className="flex-1 gap-2"

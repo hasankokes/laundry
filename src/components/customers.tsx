@@ -697,11 +697,11 @@ function SortableCustomerCard({ customer, expandedCustomer, setExpandedCustomer,
                       Not: {customer.notes}
                     </p>
                   )}
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <Button
                       variant="default"
                       size="sm"
-                      className="flex-1 gap-1"
+                      className="gap-1 text-xs"
                       onClick={(e) => {
                         e.stopPropagation()
                         setSelectedCustomerId(customer.id)
@@ -713,7 +713,7 @@ function SortableCustomerCard({ customer, expandedCustomer, setExpandedCustomer,
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex-1 gap-1"
+                      className="gap-1 text-xs"
                       onClick={(e) => {
                         e.stopPropagation()
                         setSelectedCustomer(customer.id)
@@ -721,12 +721,12 @@ function SortableCustomerCard({ customer, expandedCustomer, setExpandedCustomer,
                       }}
                     >
                       <DollarSign className="w-3 h-3" />
-                      Fiyatlar
+                      Fiyat
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex-1 gap-1"
+                      className="gap-1 text-xs"
                       onClick={(e) => {
                         e.stopPropagation()
                         setSelectedCustomer(customer.id)
@@ -736,29 +736,29 @@ function SortableCustomerCard({ customer, expandedCustomer, setExpandedCustomer,
                       <Pencil className="w-3 h-3" />
                       Düzenle
                     </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="flex-1 min-w-[72px] text-destructive hover:text-destructive gap-1" onClick={(e) => e.stopPropagation()}>
-                          <Trash2 className="w-3 h-3" />
-                          Sil
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Müşteriyi Sil</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            {customer.name} müşterisini silmek istediğinizden emin misiniz? Bu müşteriye ait tüm kayıtlar da silinecektir.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>İptal</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDeleteCustomer(customer.id)}>
-                            Sil
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
                   </div>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full text-destructive hover:text-destructive gap-1" onClick={(e) => e.stopPropagation()}>
+                        <Trash2 className="w-3 h-3" />
+                        Sil
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Müşteriyi Sil</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {customer.name} müşterisini silmek istediğinizden emin misiniz? Bu müşteriye ait tüm kayıtlar da silinecektir.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>İptal</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleDeleteCustomer(customer.id)}>
+                          Sil
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </motion.div>
             )}

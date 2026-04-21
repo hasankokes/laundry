@@ -47,6 +47,7 @@ interface AppPreferences {
   kdvRate: number
   invoiceDueDays: number
   currencySymbol: string
+  monthlyTarget: number
 }
 
 const defaultCompanyInfo: CompanyInfo = {
@@ -60,6 +61,7 @@ const defaultPreferences: AppPreferences = {
   kdvRate: 20,
   invoiceDueDays: 15,
   currencySymbol: '₺',
+  monthlyTarget: 0,
 }
 
 const sectionVariants = {
@@ -100,6 +102,7 @@ export function Settings() {
             kdvRate: data.kdvRate ?? defaultPreferences.kdvRate,
             invoiceDueDays: data.invoiceDueDays ?? defaultPreferences.invoiceDueDays,
             currencySymbol: data.currencySymbol || defaultPreferences.currencySymbol,
+            monthlyTarget: data.monthlyTarget ?? defaultPreferences.monthlyTarget,
           })
         }
       })
@@ -140,6 +143,7 @@ export function Settings() {
           kdvRate: preferences.kdvRate,
           invoiceDueDays: preferences.invoiceDueDays,
           currencySymbol: preferences.currencySymbol,
+          monthlyTarget: preferences.monthlyTarget,
         }),
       })
       if (!res.ok) throw new Error()
@@ -536,7 +540,7 @@ export function Settings() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="kdv-rate">Varsayılan KDV Oranı (%)</Label>
                 <Input
@@ -566,6 +570,17 @@ export function Settings() {
                   value={preferences.currencySymbol}
                   onChange={(e) => setPreferences({ ...preferences, currencySymbol: e.target.value })}
                   maxLength={3}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="monthly-target">Aylık Ciro Hedefi (₺)</Label>
+                <Input
+                  id="monthly-target"
+                  type="number"
+                  min="0"
+                  value={preferences.monthlyTarget}
+                  onChange={(e) => setPreferences({ ...preferences, monthlyTarget: Number(e.target.value) })}
+                  placeholder="0"
                 />
               </div>
             </div>

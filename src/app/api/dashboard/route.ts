@@ -129,9 +129,19 @@ export async function GET() {
     const totalMonthRevenue = (monthRecords ?? []).reduce((sum, r) => sum + r.total, 0)
     const daysWithMonthData = new Set((monthRecords ?? []).map(r => r.date)).size
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
-    const monthlyTarget = daysWithMonthData > 0
+    const projectedTarget = daysWithMonthData > 0
       ? (totalMonthRevenue / daysWithMonthData) * daysInMonth
       : 0
+
+    // Get monthly target from settings
+    const { data: settingsData } = await supabase
+      .from('Settings')
+      .select('monthlyTarget')
+      .eq('id', 'default')
+      .single()
+    const monthlyTarget = (settingsData?.monthlyTarget && settingsData.monthlyTarget > 0)
+      ? settingsData.monthlyTarget
+      : projectedTarget
 
     // 5. Revenue by Day of Week (all time)
     const { data: allRecords, error: allRecordsError } = await supabase

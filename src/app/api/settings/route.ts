@@ -41,6 +41,7 @@ export async function PATCH(request: NextRequest) {
     if (body.kdvRate !== undefined) updateData.kdvRate = body.kdvRate
     if (body.invoiceDueDays !== undefined) updateData.invoiceDueDays = body.invoiceDueDays
     if (body.currencySymbol !== undefined) updateData.currencySymbol = body.currencySymbol
+    if (body.monthlyTarget !== undefined) updateData.monthlyTarget = body.monthlyTarget
 
     const { data, error } = await supabase
       .from('Settings')
