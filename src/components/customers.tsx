@@ -738,8 +738,9 @@ function SortableCustomerCard({ customer, expandedCustomer, setExpandedCustomer,
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="text-destructive hover:text-destructive gap-1" onClick={(e) => e.stopPropagation()}>
+                        <Button variant="outline" size="sm" className="flex-1 min-w-[72px] text-destructive hover:text-destructive gap-1" onClick={(e) => e.stopPropagation()}>
                           <Trash2 className="w-3 h-3" />
+                          Sil
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
