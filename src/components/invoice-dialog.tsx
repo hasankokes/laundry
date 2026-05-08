@@ -543,34 +543,42 @@ export function InvoiceDialog({
       @page { size: A4; margin: 10mm; }
     `
 
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${fileName}</title><style>${printStyles}</style></head><body>${invoiceEl.innerHTML}</body></html>`
+    // iOS PWA-safe print: inject a temporary div + @media print style,
+    // then call window.print() directly.
+    // (iframe.print() breaks on iOS PWA after session restart)
+    const printId = '__invoice_print_root__'
 
-    // Create a hidden iframe and print from it — no new tab opened
-    const iframe = document.createElement('iframe')
-    iframe.style.position = 'fixed'
-    iframe.style.top = '-9999px'
-    iframe.style.left = '-9999px'
-    iframe.style.width = '0'
-    iframe.style.height = '0'
-    iframe.style.border = 'none'
-    document.body.appendChild(iframe)
+    // Remove any leftover from a previous (failed) print
+    document.getElementById(printId)?.remove()
+    document.getElementById(printId + '_style')?.remove()
 
-    const doc = iframe.contentDocument || iframe.contentWindow?.document
-    if (!doc) return
-    doc.open()
-    doc.write(html)
-    doc.close()
+    // Inject invoice HTML into a temporary div
+    const printRoot = document.createElement('div')
+    printRoot.id = printId
+    printRoot.innerHTML = invoiceEl.innerHTML
+    document.body.appendChild(printRoot)
 
-    iframe.onload = () => {
-      try {
-        iframe.contentWindow?.focus()
-        iframe.contentWindow?.print()
-      } catch {}
-      // Clean up after a short delay to allow print dialog to open
-      setTimeout(() => {
-        document.body.removeChild(iframe)
-      }, 2000)
-    }
+    // Inject @media print styles: hide everything except our print div
+    const styleEl = document.createElement('style')
+    styleEl.id = printId + '_style'
+    styleEl.textContent = `
+      @media print {
+        body > *:not(#${printId}) { display: none !important; visibility: hidden !important; }
+        #${printId} { display: block !important; visibility: visible !important; position: fixed; top: 0; left: 0; width: 100%; }
+        #${printId} * { visibility: visible !important; }
+        ${printStyles}
+      }
+    `
+    document.head.appendChild(styleEl)
+
+    // Trigger native print dialog — works on iOS PWA, desktop, and Android
+    window.print()
+
+    // Clean up after print dialog closes
+    setTimeout(() => {
+      document.getElementById(printId)?.remove()
+      document.getElementById(printId + '_style')?.remove()
+    }, 1000)
   }
 
   const handleWhatsApp = () => {
