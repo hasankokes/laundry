@@ -105,7 +105,7 @@ export function Customers() {
 
   const { data: customers, isLoading } = useCustomers()
   const { data: services } = useServices()
-  const { data: prices } = usePrices(selectedCustomer)
+  const { data: prices, isLoading: pricesLoading } = usePrices(selectedCustomer)
   const createCustomer = useCreateCustomer()
   const updateCustomer = useUpdateCustomer()
   const deleteCustomer = useDeleteCustomer()
@@ -295,7 +295,17 @@ export function Customers() {
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
-              {services?.map((service) => {
+              {pricesLoading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
+                    <div className="flex-1 space-y-1">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-3 w-32" />
+                    </div>
+                    <Skeleton className="h-8 w-24" />
+                  </div>
+                ))
+              ) : services?.map((service) => {
                 const customPrice = prices?.find(p => p.serviceId === service.id)
                 const currentPrice = customPrice?.price ?? service.defaultPrice
                 const isCustom = !!customPrice
@@ -310,10 +320,11 @@ export function Customers() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <Input
+                        key={service.id + currentPrice.toFixed(2)}
                         type="number"
                         min="0"
                         step="0.01"
-                        className="w-24 h-8 text-sm [appearance:none] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className="w-24 h-8 text-sm"
                         defaultValue={currentPrice.toFixed(2)}
                         onBlur={(e) => {
                           const newPrice = e.target.value
@@ -546,7 +557,17 @@ export function Customers() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            {services?.map((service) => {
+            {pricesLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
+                  <div className="flex-1 space-y-1">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-3 w-32" />
+                  </div>
+                  <Skeleton className="h-8 w-24" />
+                </div>
+              ))
+            ) : services?.map((service) => {
               const customPrice = prices?.find(p => p.serviceId === service.id)
               const currentPrice = customPrice?.price ?? service.defaultPrice
               const isCustom = !!customPrice
@@ -561,10 +582,11 @@ export function Customers() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <Input
+                      key={service.id + currentPrice.toFixed(2)}
                       type="number"
                       min="0"
                       step="0.01"
-                      className="w-24 h-8 text-sm [appearance:none] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      className="w-24 h-8 text-sm"
                       defaultValue={currentPrice.toFixed(2)}
                       onBlur={(e) => {
                         const newPrice = e.target.value
