@@ -10,9 +10,18 @@ import {
   useToggleServiceFavorite,
   useReorderServices,
 } from '@/hooks/use-api'
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
-import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import {
+  PlusCircle,
+  Trash2,
+  Pencil,
+  Shirt,
+  Search,
+  TrendingUp,
+  DollarSign,
+  Star,
+  ChevronUp,
+  ChevronDown,
+} from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,17 +52,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  PlusCircle,
-  Trash2,
-  Pencil,
-  Shirt,
-  Search,
-  TrendingUp,
-  DollarSign,
-  Star,
-  GripVertical,
-} from 'lucide-react'
+
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -133,10 +132,7 @@ export function Services() {
   const toggleFavorite = useToggleServiceFavorite()
   const reorderMutation = useReorderServices()
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
+
 
   const filteredServices = searchQuery
     ? services?.filter(s =>
@@ -201,16 +197,16 @@ export function Services() {
 
   const selectedServiceData = services?.find(s => s.id === selectedService)
 
-  const handleDragEnd = (event: any) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
+  const handleMoveService = (id: string, direction: 'up' | 'down') => {
+    if (!filteredServices) return
+    const index = filteredServices.findIndex(s => s.id === id)
+    if (index === -1) return
+    if (direction === 'up' && index === 0) return
+    if (direction === 'down' && index === filteredServices.length - 1) return
 
-    const oldIndex = filteredServices!.findIndex((s: any) => s.id === active.id)
-    const newIndex = filteredServices!.findIndex((s: any) => s.id === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
-
-    const reordered = [...filteredServices!]
-    const [moved] = reordered.splice(oldIndex, 1)
+    const newIndex = direction === 'up' ? index - 1 : index + 1
+    const reordered = [...filteredServices]
+    const [moved] = reordered.splice(index, 1)
     reordered.splice(newIndex, 0, moved)
 
     reorderMutation.mutate(reordered.map((s: any, i: number) => ({ id: s.id, displayOrder: i, isFavorite: s.isFavorite })))
@@ -294,15 +290,24 @@ export function Services() {
             <Skeleton key={i} className="h-24 w-full rounded-xl" />
           ))
         ) : filteredServices && filteredServices.length > 0 ? (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={filteredServices.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-              <AnimatePresence>
-                {filteredServices.map((service, index) => (
-                  <SortableServiceCard key={service.id} service={service} index={index} totalRecords={totalRecords} records={records} setSelectedService={setSelectedService} setEditOpen={setEditOpen} handleDeleteService={handleDeleteService} toggleFavorite={toggleFavorite} />
-                ))}
-              </AnimatePresence>
-            </SortableContext>
-          </DndContext>
+            <AnimatePresence mode="popLayout">
+              {filteredServices.map((service, index) => (
+                <ServiceCard 
+                  key={service.id} 
+                  service={service} 
+                  index={index} 
+                  totalRecords={totalRecords} 
+                  records={records} 
+                  setSelectedService={setSelectedService} 
+                  setEditOpen={setEditOpen} 
+                  handleDeleteService={handleDeleteService} 
+                  toggleFavorite={toggleFavorite}
+                  onMove={handleMoveService}
+                  isFirst={index === 0}
+                  isLast={index === filteredServices.length - 1}
+                />
+              ))}
+            </AnimatePresence>
         ) : (
           <Card>
             <CardContent className="p-8 text-center">
@@ -370,9 +375,7 @@ export function Services() {
   )
 }
 
-function SortableServiceCard({ service, index, totalRecords, records, setSelectedService, setEditOpen, handleDeleteService, toggleFavorite }: any) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: service.id })
-  const style = { transform: CSS.Transform.toString(transform), transition }
+function ServiceCard({ service, index, totalRecords, records, setSelectedService, setEditOpen, handleDeleteService, toggleFavorite, onMove, isFirst, isLast }: any) {
 
   const recordCount = service._count?.records ?? 0
   const recordPercent = totalRecords > 0 ? (recordCount / totalRecords) * 100 : 0
@@ -381,24 +384,40 @@ function SortableServiceCard({ service, index, totalRecords, records, setSelecte
   const serviceRevenue = records?.filter((r: any) => r.serviceId === service.id).reduce((sum: number, r: any) => sum + r.total, 0) ?? 0
 
   return (
-    <div ref={setNodeRef} style={style}>
+    <div className="overflow-hidden hover:shadow-md transition-all group">
       <motion.div
+        layout
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -8 }}
-        transition={{ delay: index * 0.03 }}
-        className="overflow-hidden hover:shadow-md transition-all group"
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ duration: 0.2 }}
+        className="relative"
       >
         <CardContent className="p-0">
           <div className="flex">
-            {/* Drag handle */}
-            <button
-              {...attributes}
-              {...listeners}
-              className="flex items-center justify-center w-8 shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
-            >
-              <GripVertical className="w-4 h-4" />
-            </button>
+            {/* Order buttons */}
+            <div className="flex flex-col border-r bg-muted/30">
+              <button
+                onClick={() => onMove(service.id, 'up')}
+                disabled={isFirst}
+                className={cn(
+                  "flex-1 flex items-center justify-center w-8 text-muted-foreground hover:text-foreground hover:bg-muted transition-all active:scale-90 active:bg-muted/80",
+                  isFirst && "opacity-0 pointer-events-none"
+                )}
+              >
+                <ChevronUp className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => onMove(service.id, 'down')}
+                disabled={isLast}
+                className={cn(
+                  "flex-1 flex items-center justify-center w-8 text-muted-foreground hover:text-foreground hover:bg-muted transition-all active:scale-90 active:bg-muted/80",
+                  isLast && "opacity-0 pointer-events-none"
+                )}
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </div>
 
             {/* Color Accent */}
             <div className={`w-2 bg-gradient-to-b ${gradient} shrink-0`} />

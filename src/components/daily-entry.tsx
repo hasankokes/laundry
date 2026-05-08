@@ -43,10 +43,14 @@ import {
 import {
   PlusCircle, Trash2, Calendar, Search, X, Check,
   ChevronLeft, ChevronRight, Copy, StickyNote, TrendingUp,
-  RotateCcw, Zap, ChevronDown, GripVertical, Clock
+  RotateCcw, Zap, ChevronDown, GripVertical, Clock,
+  LayoutGrid, Table as TableIcon
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
+import { MatrixEntry } from './matrix-entry'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useAppStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
 
 interface ServiceEntry {
@@ -79,6 +83,8 @@ function getMonday(d: Date) {
 
 export function DailyEntry() {
   const today = useMemo(() => getDateStr(new Date()), [])
+  const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily')
+  const { selectedMonth } = useAppStore()
   const [currentTime, setCurrentTime] = useState('')
   const [selectedDate, setSelectedDate] = useState(today)
   const [selectedCustomer, setSelectedCustomer] = useState<string>('')
@@ -141,27 +147,17 @@ export function DailyEntry() {
   const hasNoRecordsToday = !records || records.length === 0
   const canRepeatYesterday = isToday && hasNoRecordsToday && !!yesterdayRecords && yesterdayRecords.length > 0
 
-  // Active customers: customers with records in the last 7 days
-  const activeCustomers = useMemo(() => {
-    if (!recentRecords || !customers) return []
-    const customerIds = new Set(recentRecords.map(r => r.customerId))
-    return customers.filter(c => customerIds.has(c.id))
-  }, [recentRecords, customers])
+  // All customers sorted by displayOrder
+  const sortedCustomers = useMemo(() => {
+    if (!customers) return []
+    return [...customers].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
+  }, [customers])
 
-  // Top 3 services: most used services in last 7 days
-  const topServices = useMemo(() => {
-    if (!recentRecords || !services) return []
-    const serviceCount: Record<string, number> = {}
-    for (const r of recentRecords) {
-      serviceCount[r.serviceId] = (serviceCount[r.serviceId] || 0) + 1
-    }
-    const sorted = Object.entries(serviceCount)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([id]) => services.find(s => s.id === id))
-      .filter(Boolean) as typeof services
-    return sorted
-  }, [recentRecords, services])
+  // All services sorted by displayOrder
+  const sortedServices = useMemo(() => {
+    if (!services) return []
+    return [...services].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
+  }, [services])
 
   // Date navigation
   const navigateDate = (direction: number) => {
@@ -404,14 +400,30 @@ export function DailyEntry() {
 
   return (
     <div className="space-y-4">
-      {/* Current Time Indicator */}
-      <div className="flex items-center justify-center gap-2 text-muted-foreground">
-        <Clock className="w-3.5 h-3.5" />
-        <span className="text-xs font-medium tabular-nums">{currentTime}</span>
+      <div className="flex items-center justify-between gap-4">
+        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)} className="w-auto">
+          <TabsList className="bg-muted/50 p-1">
+            <TabsTrigger value="daily" className="gap-2 text-xs h-8">
+              <LayoutGrid className="w-3.5 h-3.5" />
+              Günlük
+            </TabsTrigger>
+            <TabsTrigger value="monthly" className="gap-2 text-xs h-8">
+              <TableIcon className="w-3.5 h-3.5" />
+              Aylık
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <div className="flex items-center gap-2 text-muted-foreground bg-muted/30 px-3 py-1.5 rounded-full">
+          <Clock className="w-3.5 h-3.5" />
+          <span className="text-xs font-medium tabular-nums">{currentTime}</span>
+        </div>
       </div>
 
-      {/* Date Navigation */}
-      <div className="flex items-center gap-2">
+      <Tabs value={viewMode} className="w-full">
+        <TabsContent value="daily" className="space-y-4 mt-0">
+          {/* Date Navigation */}
+          <div className="flex items-center gap-2">
         <Button
           variant="outline"
           size="icon"
@@ -533,7 +545,7 @@ export function DailyEntry() {
       </div>
 
       {/* Quick Entry Section */}
-      {activeCustomers.length > 0 && topServices.length > 0 && (
+      {sortedCustomers.length > 0 && sortedServices.length > 0 && (
         <Collapsible open={quickEntryOpen} onOpenChange={setQuickEntryOpen}>
           <CollapsibleTrigger asChild>
             <Button
@@ -543,7 +555,7 @@ export function DailyEntry() {
               <Zap className="w-4 h-4" />
               Hızlı Giriş
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                {activeCustomers.length} müşteri
+                {sortedCustomers.length} müşteri
               </Badge>
               <motion.div
                 animate={{ rotate: quickEntryOpen ? 180 : 0 }}
@@ -576,7 +588,7 @@ export function DailyEntry() {
                           <th className="text-left py-2 px-2 font-medium text-muted-foreground text-xs">
                             Müşteri
                           </th>
-                          {topServices.map(service => (
+                          {sortedServices.map(service => (
                             <th key={service.id} className="text-center py-2 px-1 font-medium text-muted-foreground text-xs min-w-[70px]">
                               {service.name}
                               <br />
@@ -588,12 +600,12 @@ export function DailyEntry() {
                         </tr>
                       </thead>
                       <tbody>
-                        {activeCustomers.map(customer => (
+                        {sortedCustomers.map(customer => (
                           <tr key={customer.id} className="border-b last:border-0 hover:bg-muted/30">
                             <td className="py-2 px-2 text-sm font-medium max-w-[120px] truncate">
                               {customer.name}
                             </td>
-                            {topServices.map(service => (
+                            {sortedServices.map(service => (
                               <td key={service.id} className="py-1.5 px-1 text-center">
                                 <Input
                                   type="number"
@@ -1060,6 +1072,12 @@ export function DailyEntry() {
           </Card>
         )}
       </div>
+    </TabsContent>
+
+    <TabsContent value="monthly" className="mt-0">
+          <MatrixEntry initialCustomerId={selectedCustomer || ''} initialMonth={selectedMonth} />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

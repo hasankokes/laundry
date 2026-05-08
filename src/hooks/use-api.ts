@@ -620,7 +620,25 @@ export function useReorderCustomers() {
       if (!res.ok) throw new Error('Failed to reorder')
       return res.json()
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['customers'] }) },
+    onMutate: async (newOrder) => {
+      await queryClient.cancelQueries({ queryKey: ['customers'] })
+      const previousCustomers = queryClient.getQueryData(['customers'])
+      queryClient.setQueryData(['customers'], (old: any) => {
+        if (!old) return old
+        return [...old].sort((a, b) => {
+          const itemA = newOrder.find(ni => ni.id === a.id)
+          const itemB = newOrder.find(ni => ni.id === b.id)
+          return (itemA?.displayOrder ?? 0) - (itemB?.displayOrder ?? 0)
+        })
+      })
+      return { previousCustomers }
+    },
+    onError: (err, newOrder, context) => {
+      queryClient.setQueryData(['customers'], context?.previousCustomers)
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] })
+    },
   })
 }
 
@@ -652,6 +670,24 @@ export function useReorderServices() {
       if (!res.ok) throw new Error('Failed to reorder')
       return res.json()
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['services'] }) },
+    onMutate: async (newOrder) => {
+      await queryClient.cancelQueries({ queryKey: ['services'] })
+      const previousServices = queryClient.getQueryData(['services'])
+      queryClient.setQueryData(['services'], (old: any) => {
+        if (!old) return old
+        return [...old].sort((a, b) => {
+          const itemA = newOrder.find(ni => ni.id === a.id)
+          const itemB = newOrder.find(ni => ni.id === b.id)
+          return (itemA?.displayOrder ?? 0) - (itemB?.displayOrder ?? 0)
+        })
+      })
+      return { previousServices }
+    },
+    onError: (err, newOrder, context) => {
+      queryClient.setQueryData(['services'], context?.previousServices)
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['services'] })
+    },
   })
 }

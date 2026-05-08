@@ -510,7 +510,6 @@ export function InvoiceDialog({
     const invoiceEl = document.querySelector('.invoice-print')
     if (!invoiceEl) return
 
-    // Build filename from invoice data
     const fileName = invoice
       ? `Fatura - ${invoice.customer.name} - ${startDate}_${endDate}`
       : 'Fatura'
@@ -546,14 +545,31 @@ export function InvoiceDialog({
 
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${fileName}</title><style>${printStyles}</style></head><body>${invoiceEl.innerHTML}</body></html>`
 
-    const newWindow = window.open('', '_blank')
-    if (newWindow) {
-      newWindow.document.open()
-      newWindow.document.write(html)
-      newWindow.document.close()
+    // Create a hidden iframe and print from it — no new tab opened
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.top = '-9999px'
+    iframe.style.left = '-9999px'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = 'none'
+    document.body.appendChild(iframe)
+
+    const doc = iframe.contentDocument || iframe.contentWindow?.document
+    if (!doc) return
+    doc.open()
+    doc.write(html)
+    doc.close()
+
+    iframe.onload = () => {
+      try {
+        iframe.contentWindow?.focus()
+        iframe.contentWindow?.print()
+      } catch {}
+      // Clean up after a short delay to allow print dialog to open
       setTimeout(() => {
-        try { newWindow.print() } catch {}
-      }, 500)
+        document.body.removeChild(iframe)
+      }, 2000)
     }
   }
 

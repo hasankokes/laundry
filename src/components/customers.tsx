@@ -12,9 +12,7 @@ import {
   useToggleCustomerFavorite,
   useReorderCustomers,
 } from '@/hooks/use-api'
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
-import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+
 import { CustomerDetail } from '@/components/customer-detail'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -115,10 +113,7 @@ export function Customers() {
   const toggleFavorite = useToggleCustomerFavorite()
   const reorderMutation = useReorderCustomers()
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
+
 
   const filteredCustomers = customers
     ?.filter(c => !searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase()) || c.phone?.includes(searchQuery))
@@ -209,16 +204,16 @@ export function Customers() {
 
   const selectedCustomerData = customers?.find(c => c.id === selectedCustomer)
 
-  const handleDragEnd = (event: any) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
+  const handleMoveCustomer = (id: string, direction: 'up' | 'down') => {
+    if (!filteredCustomers) return
+    const index = filteredCustomers.findIndex(c => c.id === id)
+    if (index === -1) return
+    if (direction === 'up' && index === 0) return
+    if (direction === 'down' && index === filteredCustomers.length - 1) return
 
-    const oldIndex = filteredCustomers!.findIndex((c: any) => c.id === active.id)
-    const newIndex = filteredCustomers!.findIndex((c: any) => c.id === over.id)
-    if (oldIndex === -1 || newIndex === -1) return
-
-    const reordered = [...filteredCustomers!]
-    const [moved] = reordered.splice(oldIndex, 1)
+    const newIndex = direction === 'up' ? index - 1 : index + 1
+    const reordered = [...filteredCustomers]
+    const [moved] = reordered.splice(index, 1)
     reordered.splice(newIndex, 0, moved)
 
     reorderMutation.mutate(reordered.map((c: any, i: number) => ({ id: c.id, displayOrder: i, isFavorite: c.isFavorite })))
@@ -293,7 +288,7 @@ export function Customers() {
 
         {/* Customer Pricing Dialog - still accessible from detail view */}
         <Dialog open={pricingOpen} onOpenChange={setPricingOpen}>
-          <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
             <DialogHeader>
               <DialogTitle>
                 {selectedCustomerData?.name} - Özel Fiyatlar
@@ -318,7 +313,7 @@ export function Customers() {
                         type="number"
                         min="0"
                         step="0.01"
-                        className="w-24 h-8 text-sm"
+                        className="w-24 h-8 text-sm [appearance:none] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         defaultValue={currentPrice.toFixed(2)}
                         onBlur={(e) => {
                           const newPrice = e.target.value
@@ -462,15 +457,25 @@ export function Customers() {
             <Skeleton key={i} className="h-24 w-full rounded-lg" />
           ))
         ) : filteredCustomers && filteredCustomers.length > 0 ? (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={filteredCustomers.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-              <AnimatePresence>
-                {filteredCustomers.map((customer) => (
-                  <SortableCustomerCard key={customer.id} customer={customer} expandedCustomer={expandedCustomer} setExpandedCustomer={setExpandedCustomer} setSelectedCustomerId={setSelectedCustomerId} setSelectedCustomer={setSelectedCustomer} setPricingOpen={setPricingOpen} setEditOpen={setEditOpen} handleDeleteCustomer={handleDeleteCustomer} toggleFavorite={toggleFavorite} />
-                ))}
-              </AnimatePresence>
-            </SortableContext>
-          </DndContext>
+            <AnimatePresence mode="popLayout">
+              {filteredCustomers.map((customer, index) => (
+                <CustomerCard 
+                  key={customer.id} 
+                  customer={customer} 
+                  expandedCustomer={expandedCustomer} 
+                  setExpandedCustomer={setExpandedCustomer} 
+                  setSelectedCustomerId={setSelectedCustomerId} 
+                  setSelectedCustomer={setSelectedCustomer} 
+                  setPricingOpen={setPricingOpen} 
+                  setEditOpen={setEditOpen} 
+                  handleDeleteCustomer={handleDeleteCustomer} 
+                  toggleFavorite={toggleFavorite} 
+                  onMove={handleMoveCustomer}
+                  isFirst={index === 0}
+                  isLast={index === filteredCustomers.length - 1}
+                />
+              ))}
+            </AnimatePresence>
         ) : (
           <Card>
             <CardContent className="p-8 text-center">
@@ -534,7 +539,7 @@ export function Customers() {
 
       {/* Customer Pricing Dialog */}
       <Dialog open={pricingOpen} onOpenChange={setPricingOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto" onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>
               {selectedCustomerData?.name} - Özel Fiyatlar
@@ -559,7 +564,7 @@ export function Customers() {
                       type="number"
                       min="0"
                       step="0.01"
-                      className="w-24 h-8 text-sm"
+                      className="w-24 h-8 text-sm [appearance:none] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       defaultValue={currentPrice.toFixed(2)}
                       onBlur={(e) => {
                         const newPrice = e.target.value
@@ -589,19 +594,23 @@ export function Customers() {
   )
 }
 
-function SortableCustomerCard({ customer, expandedCustomer, setExpandedCustomer, setSelectedCustomerId, setSelectedCustomer, setPricingOpen, setEditOpen, handleDeleteCustomer, toggleFavorite }: any) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: customer.id })
-  const style = { transform: CSS.Transform.toString(transform), transition }
+function CustomerCard({ customer, expandedCustomer, setExpandedCustomer, setSelectedCustomerId, setSelectedCustomer, setPricingOpen, setEditOpen, handleDeleteCustomer, toggleFavorite, onMove, isFirst, isLast }: any) {
 
   const recordCount = customer._count?.records ?? 0
   const accentColor = recordCount > 15 ? 'border-l-emerald-500' : recordCount > 8 ? 'border-l-teal-500' : recordCount > 3 ? 'border-l-amber-500' : 'border-l-muted-foreground/30'
 
   return (
-    <div ref={setNodeRef} style={style}>
-      <Card className={cn(
-        "overflow-hidden hover:shadow-lg transition-all border-l-4",
-        accentColor
-      )}>
+      <motion.div 
+        layout
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ duration: 0.2 }}
+      >
+        <Card className={cn(
+          "overflow-hidden hover:shadow-lg transition-all border-l-4",
+          accentColor
+        )}>
         <CardContent className="p-4">
           <div
             className="flex items-start justify-between cursor-pointer"
@@ -610,15 +619,35 @@ function SortableCustomerCard({ customer, expandedCustomer, setExpandedCustomer,
             )}
           >
             <div className="flex items-start gap-2 flex-1 min-w-0">
-              {/* Drag handle */}
-              <button
-                {...attributes}
-                {...listeners}
-                className="p-1 mt-0.5 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <GripVertical className="w-4 h-4" />
-              </button>
+              {/* Order buttons */}
+              <div className="flex flex-col border-r bg-muted/30">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onMove(customer.id, 'up')
+                  }}
+                  disabled={isFirst}
+                  className={cn(
+                    "flex-1 flex items-center justify-center w-8 text-muted-foreground hover:text-foreground hover:bg-muted transition-all active:scale-90 active:bg-muted/80",
+                    isFirst && "opacity-0 pointer-events-none"
+                  )}
+                >
+                  <ChevronUp className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onMove(customer.id, 'down')
+                  }}
+                  disabled={isLast}
+                  className={cn(
+                    "flex-1 flex items-center justify-center w-8 text-muted-foreground hover:text-foreground hover:bg-muted transition-all active:scale-90 active:bg-muted/80",
+                    isLast && "opacity-0 pointer-events-none"
+                  )}
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              </div>
               <div className="flex items-center gap-2 min-w-0">
                 {/* Initials avatar with hash-based color */}
                 <div className={cn(
@@ -765,6 +794,6 @@ function SortableCustomerCard({ customer, expandedCustomer, setExpandedCustomer,
           </AnimatePresence>
         </CardContent>
       </Card>
-    </div>
+      </motion.div>
   )
 }
