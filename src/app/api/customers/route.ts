@@ -20,14 +20,34 @@ export async function GET() {
       )
     }
 
-    // Optimize: Instead of fetching all records, we just return the customers.
-    // The counts can be fetched on demand or via a more efficient method.
-    // For now, let's just return the customers to ensure the UI is responsive.
+    // Fetch record counts using Supabase's built-in count — no row limit issues
+    // We use .select('customerId', { count: 'exact' }) grouped by customerId
+    // Since Supabase JS doesn't support GROUP BY natively, we fetch all customerIds
+    // with range pagination to avoid the 1000-row default limit
+    const countMap: Record<string, number> = {}
+    let from = 0
+    const pageSize = 1000
+    while (true) {
+      const { data: batch, error: batchError } = await supabase
+        .from('DailyRecord')
+        .select('customerId')
+        .range(from, from + pageSize - 1)
+      
+      if (batchError || !batch || batch.length === 0) break
+      
+      for (const r of batch) {
+        countMap[r.customerId] = (countMap[r.customerId] ?? 0) + 1
+      }
+      
+      if (batch.length < pageSize) break // last page
+      from += pageSize
+    }
+
     const result = (customers ?? []).map((customer: any) => ({
       ...customer,
       _count: {
-        records: 0, // Temporary placeholder for performance
-        prices: 0,  // Temporary placeholder for performance
+        records: countMap[customer.id] ?? 0,
+        prices: 0,
       },
     }))
 
