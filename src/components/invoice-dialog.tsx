@@ -564,12 +564,16 @@ export function InvoiceDialog({
     styleEl.textContent = `
       @media print {
         body > *:not(#${printId}) { display: none !important; visibility: hidden !important; }
-        #${printId} { display: block !important; visibility: visible !important; position: fixed; top: 0; left: 0; width: 100%; }
+        #${printId} { display: block !important; visibility: visible !important; }
         #${printId} * { visibility: visible !important; }
         ${printStyles}
       }
     `
     document.head.appendChild(styleEl)
+
+    // Temporarily set document.title so the PDF filename becomes the invoice name
+    const originalTitle = document.title
+    document.title = fileName
 
     // Trigger native print dialog — works on iOS PWA, desktop, and Android
     window.print()
@@ -578,6 +582,7 @@ export function InvoiceDialog({
     setTimeout(() => {
       document.getElementById(printId)?.remove()
       document.getElementById(printId + '_style')?.remove()
+      document.title = originalTitle
     }, 1000)
   }
 
