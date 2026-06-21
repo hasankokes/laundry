@@ -42,7 +42,8 @@ import {
   CheckCircle2,
   Loader2,
   Calculator,
-  LayoutGrid
+  LayoutGrid,
+  Printer
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -81,6 +82,163 @@ export function MatrixEntry({ initialCustomerId = '', initialMonth }: MatrixEntr
   // Local grid state: Record<serviceId, Record<dayNum, { id?: string, quantity: number }>>
   const [gridData, setGridData] = useState<Record<string, Record<number, { id?: string, quantity: number }>>>({})
   const [isSyncing, setIsSyncing] = useState(false)
+
+  const selectedCustomerData = useMemo(() => {
+    return customers?.find(c => c.id === selectedCustomerId)
+  }, [customers, selectedCustomerId])
+
+  const handlePrintPDF = () => {
+    if (!selectedCustomerData) return
+
+    const formatPrintDate = (dateStr: string) => {
+      const [y, m, d] = dateStr.split('-')
+      return `${d}.${m}.${y}`
+    }
+
+    const printId = '__matrix_print_root__'
+    document.getElementById(printId)?.remove()
+    document.getElementById(printId + '_style')?.remove()
+
+    // Build table header
+    let headerDaysHtml = ''
+    dayColumns.forEach(col => {
+      headerDaysHtml += `
+        <th class="border border-gray-400 p-1 text-center text-xs">
+          <div class="text-[9px] font-normal uppercase text-gray-500">${col.name}</div>
+          <div class="font-bold">${col.day}</div>
+        </th>
+      `
+    })
+
+    // Build table body rows
+    let rowsHtml = ''
+    sortedServices.forEach(service => {
+      const price = prices?.find(p => p.serviceId === service.id)?.price ?? service.defaultPrice
+      let cellsHtml = ''
+      dayColumns.forEach(col => {
+        const qty = gridData[service.id]?.[col.day]?.quantity ?? 0
+        cellsHtml += `
+          <td class="border border-gray-300 p-1 text-center text-xs ${col.isWeekend ? 'bg-gray-100' : ''}">
+            ${qty > 0 ? `<strong>${qty}</strong>` : '-'}
+          </td>
+        `
+      })
+      const total = serviceTotals[service.id] || 0
+      rowsHtml += `
+        <tr class="hover:bg-gray-50">
+          <td class="border border-gray-300 p-2 font-medium text-xs">${service.name}</td>
+          <td class="border border-gray-300 p-2 text-center text-xs text-gray-600">₺${price.toFixed(1)}</td>
+          ${cellsHtml}
+          <td class="border border-gray-300 p-2 text-center font-bold text-xs bg-gray-50">${total}</td>
+        </tr>
+      `
+    })
+
+    // Build footer row
+    let footerCellsHtml = ''
+    dayColumns.forEach(col => {
+      const total = dayTotals[col.day] || 0
+      footerCellsHtml += `
+        <td class="border border-gray-300 p-1 text-center font-bold text-xs bg-gray-50">
+          ${total > 0 ? total : ''}
+        </td>
+      `
+    })
+    const grandTotal = Object.values(serviceTotals).reduce((a, b) => a + b, 0)
+
+    const customerTaxText = selectedCustomerData.taxNumber 
+      ? ` | <strong>Vergi No:</strong> ${selectedCustomerData.taxNumber}` 
+      : ''
+
+    const printContent = `
+      <div class="p-6 bg-white text-gray-900 font-sans">
+        <div class="border-b-2 border-gray-800 pb-3 mb-6 flex justify-between items-start">
+          <div>
+            <h1 class="text-xl font-bold text-gray-900">AYLIK HİZMET DETAY RAPORU</h1>
+            <p class="text-sm text-gray-700 mt-1">
+              <strong>Müşteri:</strong> ${selectedCustomerData.name}${customerTaxText}
+            </p>
+          </div>
+          <div class="text-right text-xs text-gray-600">
+            <p><strong>Dönem:</strong> ${formatPrintDate(startDate)} — ${formatPrintDate(endDate)}</p>
+            <p class="mt-0.5">Rapor Tarihi: ${formatPrintDate(format(new Date(), 'yyyy-MM-dd'))}</p>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full border-collapse border border-gray-400">
+            <thead>
+              <tr class="bg-gray-50">
+                <th class="border border-gray-400 p-2 text-left text-xs min-w-[120px]">Hizmet Adı</th>
+                <th class="border border-gray-400 p-2 text-center text-xs min-w-[50px]">Fiyat</th>
+                ${headerDaysHtml}
+                <th class="border border-gray-400 p-2 text-center text-xs bg-gray-100 font-bold">Toplam</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+              <tr class="bg-gray-100 font-bold">
+                <td class="border border-gray-400 p-2 text-xs">Günlük Toplam</td>
+                <td class="border border-gray-400"></td>
+                ${footerCellsHtml}
+                <td class="border border-gray-400 p-2 text-center text-xs bg-gray-200">${grandTotal}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mt-8 border-t border-gray-200 pt-3 text-[10px] text-gray-400 flex justify-between">
+          <p>Bu rapor bilgilendirme amaçlıdır.</p>
+          <p>© Çamaşırhane Yönetim Sistemi</p>
+        </div>
+      </div>
+    `
+
+    const printRoot = document.createElement('div')
+    printRoot.id = printId
+    printRoot.innerHTML = printContent
+    document.body.appendChild(printRoot)
+
+    const printStyles = `
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #111; background: #fff; padding: 20px; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border: 1px solid #9ca3af; padding: 4px; text-align: left; }
+      th { background-color: #f3f4f6; font-weight: 700; }
+      .text-right { text-align: right; } .text-center { text-align: center; }
+      .font-bold { font-weight: 700; } .font-semibold { font-weight: 600; } .font-medium { font-weight: 500; }
+      .text-xs { font-size: 10px; } .text-sm { font-size: 12px; } .text-base { font-size: 14px; }
+      .text-lg { font-size: 16px; } .text-xl { font-size: 18px; }
+      .mb-6 { margin-bottom: 24px; } .mt-1 { margin-top: 4px; } .mt-0.5 { margin-top: 2px; } .mt-8 { margin-top: 32px; }
+      .p-6 { padding: 24px; } .pb-3 { padding-bottom: 12px; } .pt-3 { padding-top: 12px; }
+      .flex { display: flex; } .justify-between { justify-content: space-between; } .items-start { align-items: flex-start; }
+      .w-full { width: 100%; } .bg-white { background: #fff; } .bg-gray-50 { background: #f9fafb; } .bg-gray-100 { background: #f3f4f6; } .bg-gray-200 { background: #e5e7eb; }
+      @page { size: A4 landscape; margin: 10mm; }
+    `
+
+    const styleEl = document.createElement('style')
+    styleEl.id = printId + '_style'
+    styleEl.textContent = `
+      @media print {
+        body > *:not(#${printId}) { display: none !important; visibility: hidden !important; }
+        #${printId} { display: block !important; visibility: visible !important; }
+        #${printId} * { visibility: visible !important; }
+        ${printStyles}
+      }
+    `
+    document.head.appendChild(styleEl)
+
+    const originalTitle = document.title
+    document.title = `Aylik_Rapor_${selectedCustomerData.name}_${selectedMonth}`
+
+    window.print()
+
+    setTimeout(() => {
+      document.getElementById(printId)?.remove()
+      document.getElementById(printId + '_style')?.remove()
+      document.title = originalTitle
+    }, 1000)
+  }
 
   // Populate grid from records
   useEffect(() => {
@@ -273,6 +431,16 @@ export function MatrixEntry({ initialCustomerId = '', initialMonth }: MatrixEntr
                 </div>
               )}
               
+              <Button 
+                onClick={handlePrintPDF}
+                size="sm"
+                variant="outline"
+                className="gap-2 h-10 px-4 shadow-sm border-primary/20 text-primary hover:bg-primary/5"
+                disabled={!selectedCustomerId || recordsLoading}
+              >
+                <Printer className="w-4 h-4" />
+                Çıktı Al
+              </Button>
               <Button 
                 onClick={handleSaveAll}
                 size="sm"

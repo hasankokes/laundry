@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     // Fetch customer details
     const { data: customer, error: customerError } = await supabase
       .from('Customer')
-      .select('id, name, phone, address')
+      .select('id, name, phone, address, taxNumber')
       .eq('id', customerId)
       .single()
 
@@ -136,6 +136,7 @@ export async function GET(request: NextRequest) {
         name: customer.name,
         phone: customer.phone,
         address: customer.address,
+        taxNumber: customer.taxNumber,
       },
       startDate,
       endDate,

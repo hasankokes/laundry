@@ -388,6 +388,7 @@ export interface InvoiceData {
     name: string
     phone: string | null
     address: string | null
+    taxNumber: string | null
   }
   startDate: string
   endDate: string

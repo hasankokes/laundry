@@ -124,6 +124,9 @@ function InvoicePreviewContent({
         {invoice.customer.phone && (
           <p className="text-xs text-gray-600">{invoice.customer.phone}</p>
         )}
+        {invoice.customer.taxNumber && (
+          <p className="text-xs text-gray-600">Vergi No: {invoice.customer.taxNumber}</p>
+        )}
       </div>
 
       {/* Service Table - clean borders */}
@@ -314,6 +317,12 @@ function InvoiceDataContent({
             {invoice.customer.phone}
           </p>
         )}
+        {invoice.customer.taxNumber && (
+          <p className="text-sm text-gray-600 flex items-center gap-1.5 mt-0.5">
+            <Landmark className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+            Vergi No: {invoice.customer.taxNumber}
+          </p>
+        )}
       </div>
 
       {/* Service Table */}
@@ -440,6 +449,7 @@ function buildWhatsAppMessage(
 
   lines.push(`👤 *Müşteri:* ${invoice.customer.name}`)
   if (invoice.customer.phone) lines.push(`📞 ${invoice.customer.phone}`)
+  if (invoice.customer.taxNumber) lines.push(`🏦 Vergi No: ${invoice.customer.taxNumber}`)
   lines.push('')
 
   lines.push(`📅 Dönem: ${formatDate(invoice.startDate)} — ${formatDate(invoice.endDate)}`)
