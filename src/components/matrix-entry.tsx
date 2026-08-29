@@ -288,14 +288,16 @@ export function MatrixEntry({ initialCustomerId = '', initialMonth }: MatrixEntr
     console.log(`[MatrixEntry] Proceeding to sync...`)
     setIsSyncing(true)
     try {
+        const unitPrice = prices?.find(p => p.serviceId === serviceId)?.price ?? 
+                          services?.find(s => s.id === serviceId)?.defaultPrice ?? 0
+        
       if (existingRecord) {
-        // Update or Delete
         if (quantity === 0) {
           console.log(`[MatrixEntry] Deleting record ${existingRecord.id}`)
           await deleteRecord.mutateAsync(existingRecord.id)
         } else {
           console.log(`[MatrixEntry] Updating record ${existingRecord.id} to ${quantity}`)
-          await updateRecord.mutateAsync({ id: existingRecord.id, quantity })
+          await updateRecord.mutateAsync({ id: existingRecord.id, quantity, unitPrice })
         }
       } else if (quantity > 0) {
         // Create
